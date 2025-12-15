@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { MercadoPagoConfig, Payment } from 'mercadopago';
 
-// Configura o cliente com a sua chave (Versão Nova v2)
 const client = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN! });
 
 export async function POST(request: Request) {
@@ -16,11 +15,11 @@ export async function POST(request: Request) {
         transaction_amount: Number(valor),
         description: 'Desenvolvimento de Projeto - Nevox',
         payment_method_id: 'pix',
+        external_reference: email, // <--- O SEGREDO ESTÁ AQUI (Identifica o usuário)
         payer: {
           email: email,
           first_name: nome,
         },
-        // Data de expiração (30 minutos)
         date_of_expiration: new Date(Date.now() + 30 * 60 * 1000).toISOString() 
       }
     });
