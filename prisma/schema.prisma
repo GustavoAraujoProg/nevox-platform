@@ -5,9 +5,8 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  // A URL principal (Pooled)
+
   url       = env("PRISMA_DATABASE_URL") 
-  // A URL direta para migrações (Direct)
   directUrl = env("POSTGRES_URL")
 }
 

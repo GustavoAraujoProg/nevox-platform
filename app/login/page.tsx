@@ -70,7 +70,7 @@ if (!isLogin) {
         // 1. Admin
         if (formData.email === 'admin@nevox.com') {
            if (formData.senha === 'admin') {
-              localStorage.setItem('zm_access_token', 'admin_token');
+              localStorage.setItem('te_access_token', 'admin_token');
               router.push('/admin');
            } else {
               setErrorMessage("Senha incorreta para Administrador.");
@@ -81,11 +81,11 @@ if (!isLogin) {
 
         // 2. Cliente (Simulação temporária até criarmos a API de Login)
         // Isso permite você testar o dashboard logo após criar a conta
-        localStorage.setItem('zm_access_token', 'true');
+        localStorage.setItem('te_access_token', 'true');
         
         // Se não tiver nome salvo, tenta usar o do form ou um genérico
-        if (!localStorage.getItem('zm_user_name')) {
-             localStorage.setItem('zm_user_name', formData.nome || 'Cliente ZM');
+        if (!localStorage.getItem('te_user_name')) {
+             localStorage.setItem('te_user_name', formData.nome || 'Cliente TeVox');
         }
 
         router.push('/dashboard');
@@ -105,7 +105,7 @@ if (!isLogin) {
         
         <div className="relative hidden md:flex flex-col justify-center p-12 bg-purple-900/10 border-r border-white/5">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
-          <h2 className="text-4xl font-bold mb-6 leading-tight">Acesse o <br/><span className="text-purple-400">Painel ZM.</span></h2>
+          <h2 className="text-4xl font-bold mb-6 leading-tight">Acesse o <br/><span className="text-purple-400">Painel TeVox.</span></h2>
           <p className="text-gray-400 mb-8 text-lg">Gerencie seus projetos e automações em um só lugar com inteligência e segurança.</p>
           
           <div className="mt-auto flex items-center gap-4 text-sm text-gray-500">
@@ -171,7 +171,7 @@ if (!isLogin) {
           </form>
 
           <p className="mt-8 text-center text-xs text-gray-600">
-            Ao se cadastrar, você concorda com os <a href="#" className="text-gray-400 hover:text-white underline">Termos de Uso</a> da ZM Tech.
+            Ao se cadastrar, você concorda com os <a href="#" className="text-gray-400 hover:text-white underline">Termos de Uso</a> da TeVox.
           </p>
         </div>
       </div>

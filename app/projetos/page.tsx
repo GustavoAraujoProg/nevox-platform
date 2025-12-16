@@ -24,7 +24,7 @@ export default function ProjetosPage() {
           <ArrowLeft className="w-5 h-5" />
           Voltar para Home
         </a>
-        <span className="font-bold text-xl tracking-tighter">ZM LABS</span>
+        <span className="font-bold text-xl tracking-tighter">TE LABS</span>
       </nav>
 
       <main className="relative z-10 pt-32 pb-20 px-4 max-w-7xl mx-auto">
@@ -38,17 +38,17 @@ export default function ProjetosPage() {
           </motion.h1>
           <p className="text-xl text-gray-400 max-w-2xl border-l-4 border-purple-500 pl-6">
             Não vendemos apenas código. Vendemos ecossistemas digitais que transformam empresas.
-            Veja o poder da ZM Tech em ação.
+            Veja o poder da TE Vox em ação.
           </p>
         </div>
 
         {/* GRID DE PROJETOS */}
         <div className="space-y-32">
           
-          {/* PROJETO 1 - ZM FLOW (O Principal) */}
+       
           <ProjectSection 
             number="01"
-            title="ZM Flow Enterprise"
+            title="TE vox Enterprise"
             category="SaaS / Automação Fiscal"
             description="Plataforma completa de gestão societária. Utiliza Python para varredura de diários oficiais e IA para leitura de contratos sociais. Reduziu o tempo operacional de escritórios em 85%."
             stack={['Python', 'React', 'PostgreSQL', 'AWS']}
@@ -140,7 +140,7 @@ function ProjectSection({ number, title, category, description, stack, color, al
                 
                 {/* Efeito de código flutuando no fundo */}
                 <div className="absolute top-4 left-4 font-mono text-xs text-white/20">
-                    import &#123; AI &#125; from 'zm-tech';<br/>
+                    import &#123; AI &#125; from 'te-vox';<br/>
                     const future = await AI.build();
                 </div>
             </div>
