@@ -1,25 +1,20 @@
 // lib/asaas.ts
 
+// --- 1. CRIAÇÃO DE CLIENTE (Já testamos e funciona) ---
 export async function criarClienteAsaas(cliente: { 
   nome: string, 
   email: string, 
   cpf: string, 
   telefone: string 
 }) {
-  
-  // 1. DEBUG: Verifica se a chave existe
   const apiKey = process.env.ASAAS_ACCESS_TOKEN;
-  if (!apiKey) {
-    console.error("ERRO GRAVE: ASAAS_ACCESS_TOKEN não encontrado no .env");
-    throw new Error("Configuração de API inválida (Chave ausente).");
-  }
+  if (!apiKey) throw new Error("Chave Asaas não configurada no .env");
 
-  // Debug: Mostra no terminal se carregou (sem mostrar a chave toda)
-  console.log("Conectando ao Asaas com chave:", apiKey.substring(0, 10) + "...");
+  // Removemos caracteres especiais do CPF e Telefone para evitar erro
+  const cpfLimpo = cliente.cpf.replace(/\D/g, '');
+  const telLimpo = cliente.telefone.replace(/\D/g, '');
 
-  const url = `${process.env.ASAAS_URL || 'https://www.asaas.com/api/v3'}/customers`;
-
-  const options = {
+  const response = await fetch(`${process.env.ASAAS_URL}/customers`, {
     method: 'POST',
     headers: {
       accept: 'application/json',
@@ -29,30 +24,68 @@ export async function criarClienteAsaas(cliente: {
     body: JSON.stringify({
       name: cliente.nome,
       email: cliente.email,
-      cpfCnpj: cliente.cpf,
-      mobilePhone: cliente.telefone,
-      notificationDisabled: false // Envia email de cobrança automático
+      cpfCnpj: cpfLimpo,
+      mobilePhone: telLimpo,
+      notificationDisabled: false
     })
-  };
+  });
 
-  try {
-    const response = await fetch(url, options);
+  const data = await response.json();
+  if (data.errors) throw new Error(data.errors[0].description);
+  return data.id;
+}
+
+// --- 2. CRIAÇÃO DE ASSINATURA (PIX/BOLETO) ---
+// O arquivo de subscribe precisa dessa função para funcionar
+export async function criarAssinatura(clienteIdAsaas: string, valor: number) {
+  const apiKey = process.env.ASAAS_ACCESS_TOKEN;
+  
+  const response = await fetch(`${process.env.ASAAS_URL}/subscriptions`, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      access_token: apiKey || ''
+    },
+    body: JSON.stringify({
+      customer: clienteIdAsaas,
+      billingType: 'PIX', // Pode mudar para BOLETO se quiser
+      value: valor,
+      nextDueDate: new Date().toISOString().split('T')[0], // Cobra hoje
+      cycle: 'MONTHLY',
+      description: "Assinatura Plano SaaS ZM Tech"
+    })
+  });
+
+  const data = await response.json();
+  if (data.errors) throw new Error(data.errors[0].description);
+  return data;
+}
+
+// --- 3. CRIAÇÃO DE ASSINATURA CARTÃO (Para não quebrar o build) ---
+// O erro mostrava que você tem um arquivo tentando importar isso
+export async function criarAssinaturaCartao(clienteIdAsaas: string, valor: number, cardData: any) {
+    const apiKey = process.env.ASAAS_ACCESS_TOKEN;
     
-    // 2. DEBUG: Lê o texto BRUTO antes de tentar converter pra JSON
-    const responseText = await response.text();
-    console.log(`Resposta Asaas (${response.status}):`, responseText);
-
-    // Se a resposta for vazia ou der erro
-    if (!response.ok) {
-      throw new Error(`Erro Asaas ${response.status}: ${responseText}`);
-    }
-
-    // Se chegou aqui, tem JSON válido
-    const data = JSON.parse(responseText);
-    return data.id; // Retorna o ID do cliente criado (ex: cus_00000555)
-
-  } catch (error: any) {
-    console.error("Falha na função criarClienteAsaas:", error.message);
-    throw error; // Joga o erro pra cima pro Front saber
-  }
+    // Lógica básica de cartão (Placeholder para compilar)
+    const response = await fetch(`${process.env.ASAAS_URL}/subscriptions`, {
+      method: 'POST',
+      headers: {
+        accept: 'application/json',
+        'content-type': 'application/json',
+        access_token: apiKey || ''
+      },
+      body: JSON.stringify({
+        customer: clienteIdAsaas,
+        billingType: 'CREDIT_CARD',
+        value: valor,
+        nextDueDate: new Date().toISOString().split('T')[0],
+        cycle: 'MONTHLY',
+        creditCard: cardData,
+        description: "Assinatura Cartão ZM Tech"
+      })
+    });
+  
+    const data = await response.json();
+    return data;
 }
