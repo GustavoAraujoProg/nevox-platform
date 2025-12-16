@@ -1,48 +1,76 @@
 // app/api/auth/register/route.ts
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma"; // Confirme se o arquivo na pasta lib é prisma.ts
-import { criarClienteAsaas } from "@/lib/asaas"; 
+import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
+    
+    // Log para ver se os dados chegaram (sem mostrar senha)
+    console.log("Tentando registrar:", body.email);
+    console.log("Chave Asaas (primeiros 5):", process.env.ASAAS_ACCESS_TOKEN?.substring(0, 5));
 
-    // 1. Verifica se já existe
+    // 1. Verifica se já existe no Banco
     const userExists = await prisma.user.findUnique({
       where: { email: body.email }
     });
 
     if (userExists) {
-      return NextResponse.json({ error: "E-mail já cadastrado." }, { status: 400 });
+      return NextResponse.json({ error: "Usuário já existe" }, { status: 400 });
     }
 
-    // 2. Prepara os dados para o Asaas
-    // O Frontend manda 'nome' e 'telefone', aqui a gente organiza
-    const asaasId = await criarClienteAsaas({
-      nome: body.nome || body.name, 
-      email: body.email,
-      cpf: body.cpf,
-      telefone: body.telefone || body.phone 
+    // 2. Cria cliente no Asaas (COM LOG DE ERRO DETALHADO)
+    // ATENÇÃO: Verifique se você está usando a URL certa (Sandbox ou Produção)
+    // Se sua chave começa com $aact_... geralmente é produção (www.asaas.com)
+    // Se você pegou no sandbox.asaas.com, a url tem que ser sandbox.
+    const asaasUrl = "https://www.asaas.com/api/v3/customers"; 
+    // ^^^ SE FOR TESTE, MUDE PARA: "https://sandbox.asaas.com/api/v3/customers"
+
+    const asaasResponse = await fetch(asaasUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "access_token": process.env.ASAAS_ACCESS_TOKEN || ""
+      },
+      body: JSON.stringify({
+        name: body.nome,
+        email: body.email,
+        cpfCnpj: body.cpf,
+        mobilePhone: body.telefone
+      })
     });
 
-    // 3. Salva no Banco (Agora usando os nomes em Inglês que criamos)
+    // --- O PULO DO GATO PARA DESCOBRIR O ERRO ---
+    const asaasStatus = asaasResponse.status;
+    const asaasText = await asaasResponse.text(); // Lê como texto primeiro
+    
+    console.log(`Status Asaas: ${asaasStatus}`);
+    console.log(`Resposta Asaas: ${asaasText}`);
+
+    if (!asaasResponse.ok) {
+      throw new Error(`Erro no Asaas: ${asaasText}`);
+    }
+
+    const asaasCustomer = JSON.parse(asaasText); // Converte para JSON se deu certo
+
+    // 3. Salva no Banco de Dados (Postgres)
     const newUser = await prisma.user.create({
       data: {
-        name: body.nome || body.name,       // Banco: name | Form: nome
+        name: body.nome,
         email: body.email,
         cpf: body.cpf,
-        phone: body.telefone || body.phone, // Banco: phone | Form: telefone
-        password: body.password || body.senha || "mudar123", // Banco: password
-        asaasCustomerId: asaasId,
-        status: "PENDING",
-        plan: "None"
+        phone: body.telefone,
+        password: body.senha, 
+        asaasCustomerId: asaasCustomer.id,
+        plan: "Start", 
+        status: "PENDING"
       }
     });
 
     return NextResponse.json({ success: true, userId: newUser.id });
 
   } catch (error: any) {
-    console.error("Erro no registro:", error);
+    console.error("ERRO GRAVE NO REGISTRO:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
