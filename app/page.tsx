@@ -1,11 +1,11 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'; // Adicionei useEffect
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, Rocket, Code2, CheckCircle, Zap, X, Send, 
   CreditCard, MessageCircle, FileText, Lock, ChevronRight, 
-  Search, Cpu, Database, Globe, Shield, ChevronDown, LayoutDashboard, LogOut, User
+  Search, Cpu, Database, Globe, Shield, ChevronDown, LayoutDashboard, LogOut
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -20,48 +20,30 @@ const BackgroundGrid = () => (
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  // --- LÓGICA DE MEMÓRIA (HEADER INTELIGENTE) ---
+  // --- LÓGICA DE LOGIN (NOVO) ---
   const [hasAccess, setHasAccess] = useState(false);
   const [userName, setUserName] = useState('');
+
   const router = useRouter(); 
 
-  // O "Cérebro" que verifica se o usuário já está logado ao abrir o site
+  // Verifica se o usuário já tem o acesso salvo no computador
   useEffect(() => {
-    // Tenta achar o token ou o ID do usuário salvo
-    // Verificamos 'zm_access_token' OU 'zm_user_id' para garantir
     const token = localStorage.getItem('zm_access_token');
-    const userId = localStorage.getItem('zm_user_id');
     const name = localStorage.getItem('zm_user_name');
-    
-    if (token || userId) {
-      setHasAccess(true); // Ativa o modo "Logado"
-      if (name) {
-        // Pega só o primeiro nome para não ficar gigante no menu
-        setUserName(name.split(' ')[0]); 
-      } else {
-        setUserName('Visitante');
-      }
+    if (token) {
+      setHasAccess(true);
+      if (name) setUserName(name.split(' ')[0]); // Pega só o primeiro nome
     }
   }, []);
 
   const openCheckout = (planName: string) => {
-    // Se já tiver acesso, não precisa comprar de novo (opcional)
-    if (hasAccess) {
-        router.push('/dashboard');
-    } else {
-        router.push(`/assinatura?plano=${planName}`);
-    }
+    router.push(`/assinatura?plano=${planName}`);
   };
 
   const handleLogout = () => {
-    // Limpa tudo para deslogar de verdade
     localStorage.removeItem('zm_access_token');
-    localStorage.removeItem('zm_user_name');
-    localStorage.removeItem('zm_user_id');
-    localStorage.removeItem('zm_user_email');
-    
     setHasAccess(false);
-    window.location.reload(); // Recarrega a página para atualizar os botões
+    window.location.reload();
   };
 
   return (
@@ -71,16 +53,13 @@ export default function Home() {
       {/* --- MENU SUPERIOR INTELIGENTE --- */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          
-          {/* Logo */}
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
+          <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(147,51,234,0.5)]">
               <Bot className="w-5 h-5 text-white" />
             </div>
             <span className="text-xl font-bold tracking-tighter text-white">Nevox</span>
           </div>
           
-          {/* Links e Botões */}
           <div className="hidden md:flex gap-6 text-sm text-gray-400 items-center">
             <a href="#como-funciona" className="hover:text-white transition-colors">Processo</a>
             <a href="/projetos" className="text-purple-400 font-bold hover:text-purple-300 transition-colors flex items-center gap-1">
@@ -88,43 +67,27 @@ export default function Home() {
             </a>
             <a href="#planos" className="hover:text-white transition-colors">Planos</a>
             
-            {/* --- A MÁGICA ACONTECE AQUI: Troca Login por Dashboard --- */}
+            {/* --- LÓGICA DO BOTÃO MUDANDO --- */}
             {hasAccess ? (
-              <div className="flex items-center gap-4 pl-4 border-l border-white/10 animate-in fade-in duration-500">
-                  <div className="flex flex-col items-end">
-                    <span className="text-white font-bold text-xs">Olá, {userName}</span>
-                    <span className="text-green-500 text-[10px] uppercase tracking-wider flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span> Online
-                    </span>
-                  </div>
-                  
-                  <button 
-                    onClick={() => router.push('/dashboard')}
-                    className="bg-purple-600 hover:bg-purple-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] hover:scale-105"
-                  >
-                    <LayoutDashboard className="w-4 h-4" />
-                    Painel
-                  </button>
-                  
-                  <button 
-                    onClick={handleLogout} 
-                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-500 transition-colors" 
-                    title="Sair do Sistema"
-                  >
-                    <LogOut className="w-4 h-4" />
-                  </button>
+              <div className="flex items-center gap-4 pl-4 border-l border-white/10">
+                 <span className="text-white font-medium">Olá, {userName}</span>
+                 <button 
+                   onClick={() => router.push('/dashboard')}
+                   className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20"
+                 >
+                   <LayoutDashboard className="w-4 h-4" />
+                   Meu Dashboard
+                 </button>
+                 <button onClick={handleLogout} className="text-gray-500 hover:text-red-400" title="Sair">
+                   <LogOut className="w-4 h-4" />
+                 </button>
               </div>
             ) : (
-              // Se NÃO estiver logado, mostra o botão normal
-              <a href="/login" className="flex items-center gap-2 hover:text-white transition-colors bg-white/5 px-4 py-2 rounded-lg border border-white/5 hover:border-white/20">
-                <User className="w-4 h-4" />
-                Login Cliente
-              </a>
+              <a href="/login" className="hover:text-white transition-colors">Login Cliente</a>
             )}
             
           </div>
 
-          {/* Botão Mobile ou IA (Só mostra se não tiver logado, pra limpar a tela) */}
           {!hasAccess && (
             <button 
               onClick={() => setIsChatOpen(true)}
@@ -173,23 +136,15 @@ export default function Home() {
           transition={{ delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-4 w-full justify-center"
         >
-          {/* --- BOTÃO INTELIGENTE GRANDE (HERO) --- */}
           {hasAccess ? (
-            <button 
-                onClick={() => router.push('/dashboard')} 
-                className="group h-14 px-8 rounded-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2 hover:scale-105"
-            >
-              <LayoutDashboard className="w-5 h-5" />
-              Acessar Meu Painel
+            <button onClick={() => router.push('/dashboard')} className="group h-14 px-8 rounded-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2">
+              Acessar Painel Agora
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           ) : (
-            <button 
-                onClick={() => router.push('/assinatura')} 
-                className="group h-14 px-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(147,51,234,0.5)] flex items-center justify-center gap-2 hover:scale-105"
-            >
-              Começar Agora
-              <Rocket className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+            <button onClick={() => setIsChatOpen(true)} className="group h-14 px-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(147,51,234,0.5)] flex items-center justify-center gap-2">
+              Iniciar Projeto
+              <Bot className="w-5 h-5 group-hover:rotate-12 transition-transform" />
             </button>
           )}
         </motion.div>

@@ -5,31 +5,27 @@ import { prisma } from "@/lib/prisma";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    
-    // Aceita tanto "senha" quanto "password" vindo do Frontend
-    const senhaInput = body.password || body.senha;
-    const emailInput = body.email;
 
-    // 1. Busca o usuário no banco
+    // 1. Procura o usuário pelo email
     const user = await prisma.user.findUnique({
-      where: { email: emailInput }
+      where: { email: body.email }
     });
 
-    // 2. Verifica se o usuário existe E se a senha bate
-    // AQUI ESTAVA O ERRO: Agora usamos user.password (do banco)
-    if (!user || user.password !== senhaInput) {
-      return NextResponse.json({ error: "E-mail ou senha incorretos." }, { status: 401 });
+    // 2. Verifica se o usuário existe e se a senha bate
+    // (Nota: Em produção usaríamos bcrypt, mas aqui estamos comparando texto direto para funcionar rápido)
+    if (!user || user.password !== body.password) {
+      return NextResponse.json({ error: "Email ou senha incorretos" }, { status: 401 });
     }
 
-    // 3. Login com sucesso!
+    // 3. Sucesso! Retorna os dados para o Frontend salvar
     return NextResponse.json({ 
-      success: true, 
+      success: true,
       userId: user.id,
-      name: user.name, // Retorna o nome correto
+      userName: user.name,
       plan: user.plan
     });
 
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ error: "Erro interno do servidor" }, { status: 500 });
   }
 }

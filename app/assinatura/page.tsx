@@ -9,13 +9,7 @@ import { useRouter } from 'next/navigation';
 
 export default function AssinaturaFlow() {
   const router = useRouter();
-  useEffect(() => {
-    const usuarioLogado = localStorage.getItem('zm_user_id'); 
-
-    if (!usuarioLogado) {
-      router.push('/login');
-    }
-  }, []);
+  
   const [step, setStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState(""); // Para mostrar erros na tela

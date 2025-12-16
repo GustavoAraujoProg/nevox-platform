@@ -19,13 +19,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     // Carrega nome salvo no login
-    const storedName = localStorage.getItem('te_user_name');
+    const storedName = localStorage.getItem('zm_user_name');
     if (storedName) setUserName(storedName);
   }, []);
 
   const handleLogout = () => {
-    localStorage.removeItem('te_access_token');
-    router.push('/login');
+    localStorage.removeItem('zm_access_token');
+    router.push('/');
   };
 
   // --- FUNÇÃO QUE GERA O PIX ---
