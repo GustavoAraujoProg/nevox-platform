@@ -1,47 +1,48 @@
-import { NextResponse } from 'next/server';
-import prisma from '@/lib/prisma';
+// app/api/auth/register/route.ts
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma"; // Confirme se o arquivo na pasta lib é prisma.ts
+import { criarClienteAsaas } from "@/lib/asaas"; 
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { nome, email, senha, cpf } = body;
-
-    console.log("Tentando cadastrar:", email); // Log para debug
 
     // 1. Verifica se já existe
-    const usuarioExistente = await prisma.user.findUnique({
-      where: { email }
+    const userExists = await prisma.user.findUnique({
+      where: { email: body.email }
     });
 
-    if (usuarioExistente) {
-      return NextResponse.json({ error: 'Este e-mail já está cadastrado.' }, { status: 400 });
+    if (userExists) {
+      return NextResponse.json({ error: "E-mail já cadastrado." }, { status: 400 });
     }
 
-    // 2. Cria o Usuário e o Projeto
-    // IMPORTANTE: Tente criar sem o projeto primeiro se continuar dando erro
-    const novoUsuario = await prisma.user.create({
+    // 2. Prepara os dados para o Asaas
+    // O Frontend manda 'nome' e 'telefone', aqui a gente organiza
+    const asaasId = await criarClienteAsaas({
+      nome: body.nome || body.name, 
+      email: body.email,
+      cpf: body.cpf,
+      telefone: body.telefone || body.phone 
+    });
+
+    // 3. Salva no Banco (Agora usando os nomes em Inglês que criamos)
+    const newUser = await prisma.user.create({
       data: {
-        nome,
-        email,
-        senha,
-        cpf,
-        projects: {
-          create: {
-            nome: 'Projeto Inicial',
-            plano: 'Start', // Mudei para um valor fixo seguro
-            valor: 'R$ 0,00',
-            status: 'analise'
-          }
-        }
+        name: body.nome || body.name,       // Banco: name | Form: nome
+        email: body.email,
+        cpf: body.cpf,
+        phone: body.telefone || body.phone, // Banco: phone | Form: telefone
+        password: body.password || body.senha || "mudar123", // Banco: password
+        asaasCustomerId: asaasId,
+        status: "PENDING",
+        plan: "None"
       }
     });
 
-    console.log("Sucesso! Usuário criado:", novoUsuario.id); // Log de sucesso
-
-    return NextResponse.json({ message: 'Criado com sucesso' }, { status: 201 });
+    return NextResponse.json({ success: true, userId: newUser.id });
 
   } catch (error: any) {
-    console.error("ERRO NO CADASTRO (Olhe aqui):", error); // Log do erro real
-    return NextResponse.json({ error: 'Erro ao criar usuário: ' + error.message }, { status: 500 });
+    console.error("Erro no registro:", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

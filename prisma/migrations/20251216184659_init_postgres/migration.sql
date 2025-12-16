@@ -1,12 +1,16 @@
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
     "email" TEXT NOT NULL,
-    "nome" TEXT,
-    "senha" TEXT NOT NULL,
     "cpf" TEXT,
-    "role" TEXT NOT NULL DEFAULT 'CLIENT',
+    "phone" TEXT,
+    "password" TEXT,
+    "asaasCustomerId" TEXT,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "plan" TEXT NOT NULL DEFAULT 'None',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -14,13 +18,7 @@ CREATE TABLE "User" (
 -- CreateTable
 CREATE TABLE "Project" (
     "id" TEXT NOT NULL,
-    "nome" TEXT NOT NULL,
-    "descricao" TEXT,
-    "plano" TEXT NOT NULL,
-    "valor" TEXT NOT NULL,
-    "status" TEXT NOT NULL DEFAULT 'analise',
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "title" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
 
     CONSTRAINT "Project_pkey" PRIMARY KEY ("id")

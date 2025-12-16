@@ -1,6 +1,5 @@
 "use client";
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CreditCard, FileText, CheckCircle, ChevronRight, 
@@ -10,10 +9,19 @@ import { useRouter } from 'next/navigation';
 
 export default function AssinaturaFlow() {
   const router = useRouter();
+  useEffect(() => {
+    const usuarioLogado = localStorage.getItem('zm_user_id'); 
+
+    if (!usuarioLogado) {
+      router.push('/login');
+    }
+  }, []);
   const [step, setStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState(""); // Para mostrar erros na tela
+
   
-  // Estado para dados do cartão (separado para facilitar visualização)
+  // Estado para dados do cartão
   const [cardData, setCardData] = useState({
     number: '',
     name: '',
@@ -24,15 +32,15 @@ export default function AssinaturaFlow() {
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
+    cpf: '',       // ADICIONADO: Obrigatório para o Asaas
+    telefone: '',  // ADICIONADO: Obrigatório para o Asaas
     paymentMethod: '',
     plan: '',
-    // --- NOVOS CAMPOS ADICIONADOS ---
-    projectType: '',      // Tipo (App, Site, Sistema...)
-    projectGoal: '',      // Objetivo (Vendas, Gestão...)
-    targetAudience: '',   // Público Alvo
-    referenceLinks: '',   // Links de inspiração
-    budget: '',           // Orçamento estimado
-    // -------------------------------
+    projectType: '',
+    projectGoal: '',
+    targetAudience: '',
+    referenceLinks: '',
+    budget: '',
     projectDescription: '',
     deadline: '',
     features: [] as string[]
@@ -50,26 +58,69 @@ export default function AssinaturaFlow() {
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
 
+  // --- FUNÇÃO DE PAGAMENTO REAL ---
   const handleSubmit = async () => {
     setIsLoading(true);
-    setTimeout(() => {
-      setIsLoading(false);
+    setErrorMsg("");
+
+    try {
+      // 1. Preparar dados do Cartão (Separar MM e AA)
+      let cardMonth = "";
+      let cardYear = "";
+      if (cardData.expiry.includes('/')) {
+        const parts = cardData.expiry.split('/');
+        cardMonth = parts[0];
+        cardYear = "20" + parts[1]; // Assume ano 20xx
+      }
+
+      // 2. Montar o objeto para a API
+      const payload = {
+        nome: formData.nome,
+        email: formData.email,
+        cpf: formData.cpf,           // Enviando CPF
+        telefone: formData.telefone, // Enviando Telefone
+        
+        // Dados do Cartão
+        card_name: cardData.name,
+        card_number: cardData.number.replace(/\s/g, ''), // Remove espaços
+        card_month: cardMonth,
+        card_year: cardYear,
+        card_cvv: cardData.cvc
+      };
+
+      // 3. Chamar a API que criamos
+      const response = await fetch("/api/pagamento", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erro ao processar pagamento.");
+      }
+
+      // 4. Sucesso!
       localStorage.setItem('zm_access_token', 'true'); 
       localStorage.setItem('zm_user_name', formData.nome);
-      // -------------------------------
+      router.push('/dashboard'); // Redireciona
 
-      alert("✅ Pagamento processado! Bem-vindo.");
-      router.push('/dashboard');
-    }, 2000);
+    } catch (error: any) {
+      console.error(error);
+      setErrorMsg(error.message || "Ocorreu um erro inesperado.");
+      setStep(4); // Volta para a tela de cartão para ele corrigir
+    } finally {
+      setIsLoading(false);
+    }
   }
 
-  // Ícones atualizados com a nova etapa de "Dados"
   const stepsIcons = [
     { icon: User, label: 'Você' },
     { icon: Package, label: 'Plano' },
     { icon: Bot, label: 'Projeto' },
     { icon: CreditCard, label: 'Método' },
-    { icon: Lock, label: 'Dados' }, // Nova etapa
+    { icon: Lock, label: 'Dados' }, 
     { icon: ShieldCheck, label: 'Confirmar' }
   ];
 
@@ -141,9 +192,16 @@ export default function AssinaturaFlow() {
           </div>
         </div>
 
+        {/* MENSAGEM DE ERRO (Se houver) */}
+        {errorMsg && (
+          <div className="bg-red-500/20 border border-red-500 text-red-200 p-4 rounded-xl mb-6 text-center animate-pulse">
+            ⚠️ {errorMsg}
+          </div>
+        )}
+
         <AnimatePresence mode="wait">
           
-          {/* PASSO 0: IDENTIFICAÇÃO */}
+          {/* PASSO 0: IDENTIFICAÇÃO (ATUALIZADO COM CPF/TEL) */}
           {step === 0 && (
             <motion.div 
               key="step0"
@@ -151,7 +209,7 @@ export default function AssinaturaFlow() {
               className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden"
             >
               <h2 className="text-3xl font-bold mb-2">Quem é você?</h2>
-              <p className="text-gray-400 mb-8">Vamos criar seu perfil para iniciar o projeto.</p>
+              <p className="text-gray-400 mb-8">Precisamos desses dados para gerar sua nota fiscal e acesso.</p>
               
               <div className="space-y-6 max-w-md mx-auto">
                 <div className="space-y-2">
@@ -171,6 +229,27 @@ export default function AssinaturaFlow() {
                     className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
                     placeholder="seu@email.com"
                   />
+                </div>
+                {/* CAMPOS NOVOS OBRIGATÓRIOS PARA PAGAMENTO */}
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300 ml-1">CPF</label>
+                    <input 
+                        value={formData.cpf}
+                        onChange={(e) => updateForm('cpf', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
+                        placeholder="000.000.000-00"
+                    />
+                    </div>
+                    <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300 ml-1">Celular</label>
+                    <input 
+                        value={formData.telefone}
+                        onChange={(e) => updateForm('telefone', e.target.value)}
+                        className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
+                        placeholder="(11) 99999-9999"
+                    />
+                    </div>
                 </div>
               </div>
             </motion.div>
@@ -207,7 +286,8 @@ export default function AssinaturaFlow() {
               </div>
             </motion.div>
           )}
-{/* PASSO 2: DETALHES DO PROJETO (ATUALIZADO) */}
+
+          {/* PASSO 2: DETALHES DO PROJETO */}
           {step === 2 && (
             <motion.div 
               key="step2"
@@ -219,11 +299,8 @@ export default function AssinaturaFlow() {
               </h2>
               
               <div className="grid md:grid-cols-2 gap-8">
-                
-                {/* Coluna da Esquerda: Dados Estruturais */}
+                {/* Coluna da Esquerda */}
                 <div className="space-y-5">
-                  
-                  {/* Tipo e Orçamento */}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Tipo de Projeto</label>
@@ -241,7 +318,6 @@ export default function AssinaturaFlow() {
                         <option value="Outro">Outro</option>
                       </select>
                     </div>
-
                     <div className="space-y-2">
                       <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Orçamento Aprox.</label>
                       <select 
@@ -257,41 +333,17 @@ export default function AssinaturaFlow() {
                       </select>
                     </div>
                   </div>
-
-                  {/* Objetivo e Público */}
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Objetivo Principal</label>
                     <input 
                       value={formData.projectGoal}
                       onChange={(e) => updateForm('projectGoal', e.target.value)}
                       className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-                      placeholder="Ex: Automatizar processos, Aumentar vendas..."
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Público Alvo</label>
-                    <input 
-                      value={formData.targetAudience}
-                      onChange={(e) => updateForm('targetAudience', e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-                      placeholder="Ex: Advogados, Jovens 18-24, Empresas B2B..."
-                    />
-                  </div>
-
-                  {/* Links de Referência */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Referências (Links)</label>
-                    <input 
-                      value={formData.referenceLinks}
-                      onChange={(e) => updateForm('referenceLinks', e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-                      placeholder="Cole links de sites/apps que você gosta"
                     />
                   </div>
                 </div>
 
-                {/* Coluna da Direita: Descrição e Features */}
+                {/* Coluna da Direita */}
                 <div className="space-y-5">
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Descrição Detalhada</label>
@@ -299,50 +351,15 @@ export default function AssinaturaFlow() {
                       value={formData.projectDescription}
                       onChange={(e) => updateForm('projectDescription', e.target.value)}
                       className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-purple-500 focus:bg-white/10 outline-none transition-all resize-none leading-relaxed text-sm"
-                      placeholder="Descreva funcionalidades específicas, regras de negócio ou fluxos importantes..."
+                      placeholder="Descreva funcionalidades..."
                     />
                   </div>
-
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Funcionalidades Extras</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      {['Login Social', 'Pagamentos', 'Painel Admin', 'Chat IA', 'Multilíngue', 'Notificações'].map((feat) => (
-                        <div 
-                          key={feat}
-                          onClick={() => {
-                            const newFeats = formData.features.includes(feat) 
-                              ? formData.features.filter(f => f !== feat)
-                              : [...formData.features, feat];
-                            updateForm('features', newFeats);
-                          }}
-                          className={`p-2 rounded-lg border cursor-pointer flex items-center gap-2 transition-all hover:bg-white/5 text-xs font-medium
-                            ${formData.features.includes(feat) ? 'bg-purple-900/30 border-purple-500 text-white' : 'bg-transparent border-white/10 text-gray-400'}`}
-                        >
-                          <div className={`w-4 h-4 rounded border flex items-center justify-center ${formData.features.includes(feat) ? 'border-purple-500 bg-purple-500 text-white' : 'border-gray-600'}`}>
-                            {formData.features.includes(feat) && <CheckCircle className="w-3 h-3" />}
-                          </div>
-                          {feat}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                   <div className="space-y-2">
-                     <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Prazo Limite</label>
-                     <input 
-                       type="date"
-                       value={formData.deadline}
-                       onChange={(e) => updateForm('deadline', e.target.value)}
-                       className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none cursor-pointer"
-                     />
-                  </div>
-
                 </div>
               </div>
             </motion.div>
           )}
 
-          {/* PASSO 3: ESCOLHA DO MÉTODO */}
+          {/* PASSO 3: MÉTODO */}
           {step === 3 && (
             <motion.div 
               key="step3"
@@ -379,7 +396,7 @@ export default function AssinaturaFlow() {
             </motion.div>
           )}
 
-          {/* --- NOVO PASSO 4: PREENCHIMENTO DOS DADOS --- */}
+          {/* PASSO 4: PREENCHIMENTO DOS DADOS DE PAGAMENTO */}
           {step === 4 && (
             <motion.div 
               key="step4"
@@ -387,16 +404,14 @@ export default function AssinaturaFlow() {
               className="max-w-xl mx-auto bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 shadow-2xl relative"
             >
               
-              {/* OPÇÃO: CARTÃO DE CRÉDITO */}
               {formData.paymentMethod === 'card' && (
                 <div>
                   <h2 className="text-2xl font-bold mb-6 text-center">Dados do Cartão</h2>
-                  
-                  {/* Cartão Visual (Desenho) */}
+                  {/* Cartão Visual */}
                   <div className="w-full aspect-[1.58/1] rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-800 p-6 mb-8 relative shadow-xl overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
                     <div className="flex justify-between items-start mb-8">
-                       <div className="w-12 h-8 bg-white/20 rounded"></div> {/* Chip */}
+                       <div className="w-12 h-8 bg-white/20 rounded"></div> 
                        <span className="font-mono text-white/50 text-sm">Crédito</span>
                     </div>
                     <div className="font-mono text-xl md:text-2xl text-white tracking-widest mb-4 drop-shadow-md">
@@ -430,69 +445,36 @@ export default function AssinaturaFlow() {
                       <input 
                         name="expiry" placeholder="MM/AA" maxLength={5}
                         onChange={handleCardChange} value={cardData.expiry}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all" 
+                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all text-center" 
                       />
                       <input 
                         name="cvc" placeholder="CVC" maxLength={3}
                         onChange={handleCardChange} value={cardData.cvc}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all" 
+                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all text-center" 
                       />
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* OPÇÃO: PIX */}
+              {/* PIX e BOLETO - Mantidos igual antes */}
               {formData.paymentMethod === 'pix' && (
                 <div className="text-center">
-                  <h2 className="text-2xl font-bold mb-2">Escaneie o QR Code</h2>
-                  <p className="text-gray-400 mb-6 text-sm">O pagamento é aprovado na hora.</p>
-                  
-                  <div className="bg-white p-4 rounded-2xl inline-block mb-6 shadow-lg shadow-purple-500/10">
-                    <img 
-                      src={`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=PagamentoAssinaturaZM-${formData.plan}`} 
-                      alt="QR Code" 
-                      className="w-48 h-48"
-                    />
-                  </div>
-                  
-                  <div className="bg-white/5 p-4 rounded-xl flex items-center gap-3 border border-white/10">
-                    <code className="text-xs text-purple-300 truncate flex-1">
-                      00020126580014br.gov.bcb.pix0136123e4567-e89b...
-                    </code>
-                    <button className="text-xs bg-purple-600 px-3 py-1.5 rounded hover:bg-purple-500 transition-colors font-bold">
-                      Copiar
-                    </button>
-                  </div>
+                    <h2 className="text-2xl font-bold mb-4">Em Breve</h2>
+                    <p className="text-gray-400">Implementação do PIX em andamento.</p>
                 </div>
               )}
-
-              {/* OPÇÃO: BOLETO */}
-              {formData.paymentMethod === 'boleto' && (
-                <div className="text-center py-10">
-                  <div className="w-20 h-20 bg-blue-500/10 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-400">
-                    <FileText className="w-10 h-10" />
-                  </div>
-                  <h2 className="text-2xl font-bold mb-4">Pagamento via Boleto</h2>
-                  <p className="text-gray-300 mb-6 px-4">
-                    Ao confirmar, enviaremos o boleto bancário para o e-mail:
-                    <br/>
-                    <strong className="text-white bg-white/10 px-2 py-0.5 rounded mt-2 inline-block">{formData.email || 'seu@email.com'}</strong>
-                  </p>
-                  <div className="bg-yellow-500/10 border border-yellow-500/20 p-4 rounded-xl text-yellow-200 text-sm text-left flex gap-3">
-                     <div className="text-xl">⚠️</div>
-                     <div>
-                       <p className="font-bold">Atenção</p>
-                       <p>A compensação do boleto pode levar até 3 dias úteis. O projeto iniciará após a compensação.</p>
-                     </div>
-                  </div>
+               {formData.paymentMethod === 'boleto' && (
+                <div className="text-center">
+                    <h2 className="text-2xl font-bold mb-4">Em Breve</h2>
+                     <p className="text-gray-400">Implementação do Boleto em andamento.</p>
                 </div>
               )}
 
             </motion.div>
           )}
 
-          {/* PASSO 5: CONFIRMAÇÃO FINAL (Era o 4) */}
+          {/* PASSO 5: CONFIRMAÇÃO FINAL */}
           {step === 5 && (
             <motion.div 
               key="step5"
@@ -514,6 +496,7 @@ export default function AssinaturaFlow() {
                   <div>
                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Cliente</p>
                     <p className="font-medium text-white">{formData.nome}</p>
+                    <p className="text-xs text-gray-500">{formData.cpf}</p>
                   </div>
                   <div className="text-right">
                      <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total</p>
@@ -554,7 +537,7 @@ export default function AssinaturaFlow() {
           <button
             onClick={step === 5 ? handleSubmit : nextStep}
             disabled={
-                (step === 0 && (!formData.nome || !formData.email)) ||
+                (step === 0 && (!formData.nome || !formData.email || !formData.cpf || !formData.telefone)) ||
                 (step === 1 && !formData.plan) || 
                 (step === 3 && !formData.paymentMethod) || 
                 isLoading
