@@ -1,58 +1,59 @@
 // app/api/auth/register/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { criarClienteAsaas } from "@/lib/asaas";
+import { criarClienteAsaas } from "@/lib/asaas"; 
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    // --- CORREÇÃO AQUI ---
-    // Agora aceita 'password' (inglês) OU 'senha' (português)
-    if (!body.email || (!body.password && !body.senha)) {
-      return NextResponse.json({ error: "Email e Senha são obrigatórios" }, { status: 400 });
+    // 1. Validação básica
+    if (!body.email || !body.password || !body.cpf) {
+      return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
-    // Verifica se já existe
+    // 2. Verifica se já existe
     const userExists = await prisma.user.findUnique({
       where: { email: body.email }
     });
 
     if (userExists) {
-      return NextResponse.json({ error: "E-mail já cadastrado." }, { status: 400 });
+      return NextResponse.json({ error: "Usuário já cadastrado" }, { status: 400 });
     }
 
-    // Cria no Asaas
-    const asaasId = await criarClienteAsaas({
-      nome: body.name || body.nome, 
-      email: body.email,
-      cpf: body.cpf || "",
-      telefone: body.phone || body.telefone || ""
-    });
+    // 3. Cria no Asaas (Se der erro aqui, ele avisa no console mas segue)
+    let asaasId = null;
+    try {
+        // CORREÇÃO: Mapeando para os nomes em PORTUGUÊS que a função criarClienteAsaas pede
+        asaasId = await criarClienteAsaas({
+            nome: body.nome || body.name,
+            email: body.email,
+            cpf: body.cpf,                   // A função pede 'cpf'
+            telefone: body.telefone || body.phone // A função pede 'telefone'
+        });
+    } catch (error) {
+        console.error("Erro ao criar no Asaas:", error);
+    }
 
-    // Salva no Banco
+    // 4. Cria o usuário no Banco de Dados
+    // CORREÇÃO: Aqui usamos os nomes do PRISMA (mobilePhone, password direto)
     const newUser = await prisma.user.create({
       data: {
-        name: body.name || body.nome, 
+        name: body.nome || body.name,
         email: body.email,
-        // Aceita a senha venha ela como vier
-        password: body.password || body.senha, 
-        phone: body.phone || body.telefone,
+        password: body.password,        // Usando a senha direta (corrige o erro hashedPassword)
+        mobilePhone: body.telefone || body.phone, // O banco pede 'mobilePhone'
         cpf: body.cpf,
         asaasCustomerId: asaasId,
-        status: "ACTIVE",
-        plan: "None"
+        status: 'PENDING',
+        projectStage: 'analise'
       }
     });
 
-    return NextResponse.json({ 
-      success: true, 
-      userId: newUser.id,
-      userName: newUser.name 
-    });
+    return NextResponse.json({ success: true, userId: newUser.id });
 
   } catch (error: any) {
     console.error("Erro no registro:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || "Erro interno" }, { status: 500 });
   }
 }
