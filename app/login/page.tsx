@@ -2,195 +2,225 @@
 "use client";
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { User, Mail, Lock, ArrowLeft, ArrowRight, Loader2, Building2, AlertCircle } from 'lucide-react';
-import Link from 'next/link';
+import { User, Mail, Lock, FileText, Phone, ArrowRight, Loader2, AlertTriangle, LogIn } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-
-const BackgroundGrid = () => (
-  <div className="fixed inset-0 z-0 overflow-hidden bg-black pointer-events-none">
-    <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-    <div className="absolute left-1/2 top-1/2 -z-10 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-purple-600/20 blur-[120px]"></div>
-  </div>
-);
 
 export default function LoginPage() {
   const router = useRouter();
-  const [isLogin, setIsLogin] = useState(true);
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(''); 
   
+  // Controle de Abas: true = Cadastro, false = Login
+  const [isRegister, setIsRegister] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+
   const [formData, setFormData] = useState({
-    nome: '',
+    name: '',
+    cpf: '',
     email: '',
-    senha: '',
-    cpf: ''
+    phone: '', // CAMPO NOVO OBRIGATÓRIO
+    password: ''
   });
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrorMessage(''); 
   };
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
+  // --- FUNÇÃO DE LOGIN/CADASTRO UNIFICADA ---
+  const handleAuth = async () => {
     setIsLoading(true);
-    setErrorMessage('');
+    setErrorMsg("");
 
-    // --- 1. LÓGICA DE CADASTRO (REGISTER) ---
-    if (!isLogin) {
-      try {
-        const response = await fetch('/api/auth/register', {
+    try {
+      if (isRegister) {
+        // --- LÓGICA DE CADASTRO ---
+        
+        // 1. Validação
+        if (!formData.name || !formData.email || !formData.password || !formData.cpf || !formData.phone) {
+          throw new Error("Preencha todos os campos (inclusive celular).");
+        }
+
+        // 2. Envia para API de Registro
+        const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(formData),
+          body: JSON.stringify({
+            nome: formData.name,
+            email: formData.email,
+            password: formData.password,
+            cpf: formData.cpf.replace(/\D/g, ''),
+            telefone: formData.phone.replace(/\D/g, '') // Manda o celular limpo
+          })
         });
 
-        const data = await response.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erro ao cadastrar.");
 
-        if (response.ok) {
-          alert("Cadastro realizado! Agora faça login.");
-          setIsLogin(true);
-          setFormData({ ...formData, senha: '' });
-        } else {
-          setErrorMessage(data.error || "Erro ao cadastrar");
+        // Sucesso no Cadastro -> Salva e Entra
+        localStorage.setItem('nevox_token', 'true');
+        localStorage.setItem('nevox_user_id', data.userId);
+        localStorage.setItem('nevox_user_name', formData.name);
+        router.push('/dashboard');
+
+      } else {
+        // --- LÓGICA DE LOGIN ---
+        
+        // 1. Validação Simples
+        if (!formData.email || !formData.password) {
+            throw new Error("Preencha email e senha.");
         }
-      } catch (error) {
-        setErrorMessage("Erro de conexão com o servidor.");
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
 
-    // --- 2. LÓGICA DE LOGIN ---
-    
-    // A) Login de Administrador (Hardcoded)
-    if (formData.email === 'admin@nevox.com') {
-       if (formData.senha === 'admin') {
-          localStorage.setItem('nevox_token', 'admin_token'); // Atualizado para nevox_
-          router.push('/admin');
-       } else {
-          setErrorMessage("Senha incorreta para Administrador.");
-          setIsLoading(false);
-       }
-       return;
-    }
-
-    // B) Login de Cliente REAL (Conectado na API)
-    try {
-        const response = await fetch('/api/auth/login', {
+        // 2. Envia para API de Login
+        const res = await fetch('/api/auth/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 email: formData.email,
-                password: formData.senha // A API aceita 'password' ou 'senha' agora
+                password: formData.password
             })
         });
 
-        const data = await response.json();
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Email ou senha inválidos.");
 
-        if (response.ok) {
-            // SUCESSO: Salva as chaves padrão 'nevox_'
-            localStorage.setItem('nevox_token', 'true');
-            localStorage.setItem('nevox_user_id', data.userId);
-            localStorage.setItem('nevox_user_name', data.userName); 
-            
-            // Redireciona para a Home
-            router.push('/');
+        // Sucesso no Login -> Salva e Entra
+        localStorage.setItem('nevox_token', 'true'); // Token Simples ou JWT
+        localStorage.setItem('nevox_user_id', data.userId);
+        localStorage.setItem('nevox_user_name', data.name);
+        
+        // Se for admin, manda pro admin
+        if(data.role === 'admin') {
+            router.push('/admin');
         } else {
-            // ERRO: Senha ou email errados
-            localStorage.clear();
-            setErrorMessage(data.error || "Email ou senha incorretos");
+            router.push('/dashboard');
         }
-    } catch (error) {
-        setErrorMessage("Erro de conexão com o servidor.");
+      }
+
+    } catch (error: any) {
+      console.error(error);
+      setErrorMsg(error.message);
     } finally {
-        setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white font-sans flex items-center justify-center p-4 relative">
-      <BackgroundGrid />
-      
-      <Link href="/" className="absolute top-8 left-8 flex items-center gap-2 text-gray-400 hover:text-white transition-colors z-50 bg-black/50 px-3 py-1 rounded-full border border-white/10 backdrop-blur-sm">
-        <ArrowLeft className="w-4 h-4" /> <span className="text-sm">Voltar</span>
-      </Link>
-
-      <div className="w-full max-w-4xl grid md:grid-cols-2 bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative z-10 min-h-[600px]">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-4 font-sans">
+      <div className="w-full max-w-5xl bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl flex flex-col md:flex-row min-h-[600px]">
         
         {/* Lado Esquerdo (Visual) */}
-        <div className="relative hidden md:flex flex-col justify-center p-12 bg-purple-900/10 border-r border-white/5">
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
-          <h2 className="text-4xl font-bold mb-6 leading-tight">Acesse o <br/><span className="text-purple-400">Painel Nevox.</span></h2>
-          <p className="text-gray-400 mb-8 text-lg">Gerencie seus projetos e automações em um só lugar com inteligência e segurança.</p>
-          
-          <div className="mt-auto flex items-center gap-4 text-sm text-gray-500">
-            <div className="flex -space-x-2">
-              <div className="w-8 h-8 rounded-full bg-gray-800 border-2 border-black"></div>
-              <div className="w-8 h-8 rounded-full bg-gray-700 border-2 border-black"></div>
-              <div className="w-8 h-8 rounded-full bg-gray-600 border-2 border-black flex items-center justify-center text-[10px]">+2k</div>
-            </div>
-            <p>Empresas já cadastradas</p>
-          </div>
+        <div className="md:w-1/2 bg-gradient-to-br from-purple-900/20 to-black p-10 flex flex-col justify-center relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-full h-full bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+           <h1 className="text-4xl font-bold mb-4 relative z-10">
+             {isRegister ? 'Crie sua Conta' : 'Bem-vindo de volta'} <br />
+             <span className="text-purple-500">Painel Nevox.</span>
+           </h1>
+           <p className="text-gray-400 text-lg leading-relaxed relative z-10">
+             {isRegister 
+               ? "Gerencie seus projetos e automações em um só lugar com inteligência e segurança."
+               : "Acesse seu dashboard para acompanhar seus projetos e faturas em tempo real."}
+           </p>
+           
+           <div className="mt-10 flex items-center gap-[-10px] relative z-10">
+              <div className="w-10 h-10 rounded-full bg-gray-800 border-2 border-black"></div>
+              <div className="w-10 h-10 rounded-full bg-gray-700 border-2 border-black -ml-4"></div>
+              <div className="w-10 h-10 rounded-full bg-gray-600 border-2 border-black -ml-4 flex items-center justify-center text-xs font-bold">+2k</div>
+              <span className="ml-4 text-sm text-gray-500">Empresas conectadas</span>
+           </div>
         </div>
 
         {/* Lado Direito (Formulário) */}
-        <div className="p-8 md:p-12 flex flex-col justify-center bg-[#0a0a0a]">
+        <div className="md:w-1/2 p-10 bg-[#0a0a0a] flex flex-col justify-center">
           
-          <div className="flex bg-white/5 p-1 rounded-xl mb-8 w-full">
-            <button onClick={() => { setIsLogin(true); setErrorMessage(''); }} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${isLogin ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>Login</button>
-            <button onClick={() => { setIsLogin(false); setErrorMessage(''); }} className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${!isLogin ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}>Cadastro</button>
+          {/* Botões de Troca (Abas) */}
+          <div className="flex gap-4 mb-8 bg-white/5 p-1 rounded-xl">
+             <button 
+                onClick={() => { setIsRegister(false); setErrorMsg(""); }} 
+                className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${!isRegister ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+             >
+                Login
+             </button>
+             <button 
+                onClick={() => { setIsRegister(true); setErrorMsg(""); }} 
+                className={`flex-1 py-3 rounded-lg text-sm font-medium transition-all ${isRegister ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'}`}
+             >
+                Cadastro
+             </button>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <AnimatePresence mode='wait'>
-              {!isLogin && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0 }} 
-                  animate={{ opacity: 1, height: 'auto' }} 
-                  exit={{ opacity: 0, height: 0 }} 
-                  className="space-y-4 overflow-hidden"
-                >
-                  <div className="relative group">
-                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                    <input name="nome" required={!isLogin} onChange={handleChange} placeholder="Nome Completo" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
-                  </div>
-                  
-                  <div className="relative group">
-                    <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                    <input name="cpf" required={!isLogin} onChange={handleChange} placeholder="CNPJ ou CPF" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="relative group">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-              <input name="email" type="email" required onChange={handleChange} placeholder="Seu E-mail Corporativo" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
-            </div>
-
-            <div className="relative group">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-              <input name="senha" type="password" required onChange={handleChange} placeholder="Sua Senha" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
-            </div>
-
-            {/* Mensagem de Erro */}
-            {errorMessage && (
-              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20 animate-in fade-in slide-in-from-top-1">
-                <AlertCircle className="w-4 h-4" /> {errorMessage}
-              </div>
+          <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300" key={isRegister ? 'reg' : 'log'}>
+            
+            {/* CAMPOS SÓ DO CADASTRO */}
+            {isRegister && (
+                <>
+                    <div className="bg-white/5 border border-white/10 rounded-xl flex items-center px-4">
+                        <User className="text-gray-500 w-5 h-5" />
+                        <input 
+                            name="name" placeholder="Nome Completo" 
+                            onChange={handleChange}
+                            className="w-full bg-transparent p-4 outline-none text-white placeholder:text-gray-600"
+                        />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="bg-white/5 border border-white/10 rounded-xl flex items-center px-4">
+                            <FileText className="text-gray-500 w-5 h-5" />
+                            <input 
+                                name="cpf" placeholder="CPF" maxLength={14}
+                                onChange={handleChange}
+                                className="w-full bg-transparent p-4 outline-none text-white placeholder:text-gray-600"
+                            />
+                        </div>
+                        <div className="bg-white/5 border border-white/10 rounded-xl flex items-center px-4">
+                            <Phone className="text-gray-500 w-5 h-5" />
+                            <input 
+                                name="phone" placeholder="Celular (Zap)" 
+                                onChange={handleChange}
+                                className="w-full bg-transparent p-4 outline-none text-white placeholder:text-gray-600"
+                            />
+                        </div>
+                    </div>
+                </>
             )}
 
-            <button disabled={isLoading} className="w-full h-12 mt-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg hover:shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed">
-              {isLoading ? <Loader2 className="animate-spin" /> : (isLogin ? 'Acessar Conta' : 'Criar Conta Grátis')}
-              {!isLoading && <ArrowRight className="w-4 h-4" />}
-            </button>
-          </form>
+            {/* CAMPOS COMUNS (EMAIL/SENHA) */}
+            <div className="bg-white/5 border border-white/10 rounded-xl flex items-center px-4">
+               <Mail className="text-gray-500 w-5 h-5" />
+               <input 
+                 name="email" type="email" placeholder="seu@email.com" 
+                 onChange={handleChange}
+                 className="w-full bg-transparent p-4 outline-none text-white placeholder:text-gray-600"
+               />
+            </div>
 
-          <p className="mt-8 text-center text-xs text-gray-600">
-            Ao se cadastrar, você concorda com os <a href="#" className="text-gray-400 hover:text-white underline">Termos de Uso</a> da Nevox.
+            <div className="bg-white/5 border border-white/10 rounded-xl flex items-center px-4">
+               <Lock className="text-gray-500 w-5 h-5" />
+               <input 
+                 name="password" type="password" placeholder="Senha segura" 
+                 onChange={handleChange}
+                 className="w-full bg-transparent p-4 outline-none text-white placeholder:text-gray-600"
+               />
+            </div>
+          </div>
+
+          {errorMsg && (
+            <div className="mt-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm flex items-center gap-2 animate-pulse">
+               <AlertTriangle className="w-4 h-4" /> {errorMsg}
+            </div>
+          )}
+
+          <button 
+            onClick={handleAuth}
+            disabled={isLoading}
+            className="w-full mt-8 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl transition-all shadow-lg hover:shadow-purple-500/25 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"
+          >
+            {isLoading ? (
+                <Loader2 className="animate-spin w-5 h-5" />
+            ) : (
+                isRegister ? <>Criar Conta Grátis <ArrowRight className="w-5 h-5" /></> : <>Entrar no Painel <LogIn className="w-5 h-5" /></>
+            )}
+          </button>
+
+          <p className="text-xs text-gray-600 text-center mt-6">
+            {isRegister ? 'Ao se cadastrar, você concorda com os Termos de Uso.' : 'Esqueceu sua senha? Entre em contato com o suporte.'}
           </p>
         </div>
       </div>
