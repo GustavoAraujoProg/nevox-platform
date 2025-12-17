@@ -1,3 +1,4 @@
+// app/login/page.tsx
 "use client";
 
 import React, { useState } from 'react';
@@ -17,7 +18,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(''); // Estado para erros
+  const [errorMessage, setErrorMessage] = useState(''); 
   
   const [formData, setFormData] = useState({
     nome: '',
@@ -28,17 +29,17 @@ export default function LoginPage() {
 
   const handleChange = (e: any) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
-    setErrorMessage(''); // Limpa erro ao digitar
+    setErrorMessage(''); 
   };
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
     setIsLoading(true);
     setErrorMessage('');
-if (!isLogin) {
+
+    // --- 1. LÓGICA DE CADASTRO (REGISTER) ---
+    if (!isLogin) {
       try {
-        console.log("Enviando dados..."); // Debug no navegador
-        
         const response = await fetch('/api/auth/register', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -52,45 +53,61 @@ if (!isLogin) {
           setIsLogin(true);
           setFormData({ ...formData, senha: '' });
         } else {
-          // Mostra o erro que veio da API
-          alert("Erro: " + data.error);
+          setErrorMessage(data.error || "Erro ao cadastrar");
         }
       } catch (error) {
-        console.error(error);
-        alert("Erro de conexão. Verifique se o terminal do VS Code mostra algum erro.");
+        setErrorMessage("Erro de conexão com o servidor.");
       } finally {
-        setIsLoading(false); // <--- OBRIGATÓRIO: Desliga o loading aconteça o que acontecer
+        setIsLoading(false);
       }
       return;
     }
-    // --- LÓGICA DE LOGIN ---
-    // (Por enquanto simulada para Usuários, Real para Admin)
-    setTimeout(() => {
-      if (isLogin) {
-        // 1. Admin
-        if (formData.email === 'admin@nevox.com') {
-           if (formData.senha === 'admin') {
-              localStorage.setItem('zm_access_token', 'admin_token');
-              router.push('/admin');
-           } else {
-              setErrorMessage("Senha incorreta para Administrador.");
-              setIsLoading(false);
-           }
-           return;
-        }
 
-        // 2. Cliente (Simulação temporária até criarmos a API de Login)
-        // Isso permite você testar o dashboard logo após criar a conta
-        localStorage.setItem('zm_access_token', 'true');
-        
-        // Se não tiver nome salvo, tenta usar o do form ou um genérico
-        if (!localStorage.getItem('zm_user_name')) {
-             localStorage.setItem('zm_user_name', formData.nome || 'Cliente ZM');
-        }
+    // --- 2. LÓGICA DE LOGIN ---
+    
+    // A) Login de Administrador (Hardcoded)
+    if (formData.email === 'admin@nevox.com') {
+       if (formData.senha === 'admin') {
+          localStorage.setItem('nevox_token', 'admin_token'); // Atualizado para nevox_
+          router.push('/admin');
+       } else {
+          setErrorMessage("Senha incorreta para Administrador.");
+          setIsLoading(false);
+       }
+       return;
+    }
 
-        router.push('/dashboard');
-      }
-    }, 1500);
+    // B) Login de Cliente REAL (Conectado na API)
+    try {
+        const response = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                email: formData.email,
+                password: formData.senha // A API aceita 'password' ou 'senha' agora
+            })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            // SUCESSO: Salva as chaves padrão 'nevox_'
+            localStorage.setItem('nevox_token', 'true');
+            localStorage.setItem('nevox_user_id', data.userId);
+            localStorage.setItem('nevox_user_name', data.userName); 
+            
+            // Redireciona para a Home
+            router.push('/');
+        } else {
+            // ERRO: Senha ou email errados
+            localStorage.clear();
+            setErrorMessage(data.error || "Email ou senha incorretos");
+        }
+    } catch (error) {
+        setErrorMessage("Erro de conexão com o servidor.");
+    } finally {
+        setIsLoading(false);
+    }
   };
 
   return (
@@ -103,9 +120,10 @@ if (!isLogin) {
 
       <div className="w-full max-w-4xl grid md:grid-cols-2 bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden shadow-2xl relative z-10 min-h-[600px]">
         
+        {/* Lado Esquerdo (Visual) */}
         <div className="relative hidden md:flex flex-col justify-center p-12 bg-purple-900/10 border-r border-white/5">
           <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-purple-500 to-transparent opacity-50"></div>
-          <h2 className="text-4xl font-bold mb-6 leading-tight">Acesse o <br/><span className="text-purple-400">Painel ZM.</span></h2>
+          <h2 className="text-4xl font-bold mb-6 leading-tight">Acesse o <br/><span className="text-purple-400">Painel Nevox.</span></h2>
           <p className="text-gray-400 mb-8 text-lg">Gerencie seus projetos e automações em um só lugar com inteligência e segurança.</p>
           
           <div className="mt-auto flex items-center gap-4 text-sm text-gray-500">
@@ -118,6 +136,7 @@ if (!isLogin) {
           </div>
         </div>
 
+        {/* Lado Direito (Formulário) */}
         <div className="p-8 md:p-12 flex flex-col justify-center bg-[#0a0a0a]">
           
           <div className="flex bg-white/5 p-1 rounded-xl mb-8 w-full">
@@ -136,12 +155,12 @@ if (!isLogin) {
                 >
                   <div className="relative group">
                     <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                    <input name="nome" required onChange={handleChange} placeholder="Nome Completo" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
+                    <input name="nome" required={!isLogin} onChange={handleChange} placeholder="Nome Completo" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
                   </div>
                   
                   <div className="relative group">
                     <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500 group-focus-within:text-purple-400 transition-colors" />
-                    <input name="cpf" required onChange={handleChange} placeholder="CNPJ ou CPF" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
+                    <input name="cpf" required={!isLogin} onChange={handleChange} placeholder="CNPJ ou CPF" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
                   </div>
                 </motion.div>
               )}
@@ -157,7 +176,7 @@ if (!isLogin) {
               <input name="senha" type="password" required onChange={handleChange} placeholder="Sua Senha" className="w-full bg-white/5 border border-white/10 rounded-xl py-3.5 pl-12 pr-4 text-white placeholder-gray-500 outline-none focus:border-purple-500 focus:bg-white/10 transition-all" />
             </div>
 
-            {/* Mensagem de Erro (Se houver) */}
+            {/* Mensagem de Erro */}
             {errorMessage && (
               <div className="flex items-center gap-2 text-red-400 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20 animate-in fade-in slide-in-from-top-1">
                 <AlertCircle className="w-4 h-4" /> {errorMessage}
@@ -171,7 +190,7 @@ if (!isLogin) {
           </form>
 
           <p className="mt-8 text-center text-xs text-gray-600">
-            Ao se cadastrar, você concorda com os <a href="#" className="text-gray-400 hover:text-white underline">Termos de Uso</a> da ZM Tech.
+            Ao se cadastrar, você concorda com os <a href="#" className="text-gray-400 hover:text-white underline">Termos de Uso</a> da Nevox.
           </p>
         </div>
       </div>

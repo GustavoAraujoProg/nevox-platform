@@ -1,55 +1,73 @@
+// app/assinatura/page.tsx
 "use client";
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CreditCard, FileText, CheckCircle, ChevronRight, 
-  ChevronLeft, Bot, User, Mail, Package, ShieldCheck, Zap, Lock
+  ChevronLeft, Bot, User, Package, ShieldCheck, Zap, Lock, AlertTriangle,
+  Loader2
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 export default function AssinaturaFlow() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   const [step, setStep] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState(""); // Para mostrar erros na tela
+  const [errorMsg, setErrorMsg] = useState(""); 
 
-  
-  // Estado para dados do cartão
-  const [cardData, setCardData] = useState({
-    number: '',
-    name: '',
-    expiry: '',
-    cvc: ''
-  });
+  // Estado de Login
+  const [isLogged, setIsLogged] = useState(false);
+  const [userId, setUserId] = useState('');
 
+  // Estados do Formulário
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
-    cpf: '',       // ADICIONADO: Obrigatório para o Asaas
-    telefone: '',  // ADICIONADO: Obrigatório para o Asaas
+    cpf: '',      
+    telefone: '', 
     paymentMethod: '',
     plan: '',
+    // Campos de Projeto (Opcionais para salvar depois)
     projectType: '',
-    projectGoal: '',
-    targetAudience: '',
-    referenceLinks: '',
-    budget: '',
-    projectDescription: '',
-    deadline: '',
-    features: [] as string[]
+    projectDescription: ''
   });
+
+  // Verifica Login ao carregar
+  useEffect(() => {
+    const token = localStorage.getItem('nevox_token');
+    const storedId = localStorage.getItem('nevox_user_id');
+    const storedName = localStorage.getItem('nevox_user_name');
+    
+    // Se veio um plano na URL, já seleciona
+    const urlPlan = searchParams.get('plano');
+    if (urlPlan) updateForm('plan', urlPlan);
+
+    if (token && storedId) {
+      setIsLogged(true);
+      setUserId(storedId);
+      // Preenche o nome se tiver
+      if (storedName) updateForm('nome', storedName);
+    }
+  }, [searchParams]);
 
   const updateForm = (key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setCardData(prev => ({ ...prev, [name]: value }));
+  const nextStep = () => {
+    // Bloqueio se não estiver logado no Passo 0
+    if (step === 0 && !isLogged) {
+        localStorage.setItem('temp_plan_choice', formData.plan); // Salva para depois
+        alert("Para continuar, você precisa criar sua conta ou fazer login.");
+        router.push('/cadastro');
+        return;
+    }
+    setStep(prev => prev + 1);
   };
-
-  const nextStep = () => setStep(prev => prev + 1);
+  
   const prevStep = () => setStep(prev => prev - 1);
 
   // --- FUNÇÃO DE PAGAMENTO REAL ---
@@ -58,52 +76,37 @@ export default function AssinaturaFlow() {
     setErrorMsg("");
 
     try {
-      // 1. Preparar dados do Cartão (Separar MM e AA)
-      let cardMonth = "";
-      let cardYear = "";
-      if (cardData.expiry.includes('/')) {
-        const parts = cardData.expiry.split('/');
-        cardMonth = parts[0];
-        cardYear = "20" + parts[1]; // Assume ano 20xx
+      if (!userId) {
+        throw new Error("Usuário não identificado. Faça login novamente.");
       }
 
-      // 2. Montar o objeto para a API
-      const payload = {
-        nome: formData.nome,
-        email: formData.email,
-        cpf: formData.cpf,           // Enviando CPF
-        telefone: formData.telefone, // Enviando Telefone
-        
-        // Dados do Cartão
-        card_name: cardData.name,
-        card_number: cardData.number.replace(/\s/g, ''), // Remove espaços
-        card_month: cardMonth,
-        card_year: cardYear,
-        card_cvv: cardData.cvc
-      };
-
-      // 3. Chamar a API que criamos
-      const response = await fetch("/api/pagamento", {
+      // 1. Chama a API de Assinatura (A que cria o Link do Asaas)
+      const response = await fetch("/api/payment/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+            userId: userId,
+            plano: formData.plan || 'Start'
+        }),
       });
 
       const result = await response.json();
 
-      if (!response.ok) {
-        throw new Error(result.error || "Erro ao processar pagamento.");
+      if (!result.success) {
+        throw new Error(result.error || "Erro ao processar assinatura.");
       }
 
-      // 4. Sucesso!
-      localStorage.setItem('zm_access_token', 'true'); 
-      localStorage.setItem('zm_user_name', formData.nome);
-      router.push('/dashboard'); // Redireciona
+      // 2. SUCESSO! Redireciona para o Link Seguro do Asaas
+      // Lá o cliente paga com Pix, Boleto ou Cartão com segurança total
+      if (result.paymentUrl) {
+          window.location.href = result.paymentUrl;
+      } else {
+          throw new Error("Link de pagamento não gerado.");
+      }
 
     } catch (error: any) {
       console.error(error);
-      setErrorMsg(error.message || "Ocorreu um erro inesperado.");
-      setStep(4); // Volta para a tela de cartão para ele corrigir
+      setErrorMsg(error.message || "Erro de conexão.");
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +117,6 @@ export default function AssinaturaFlow() {
     { icon: Package, label: 'Plano' },
     { icon: Bot, label: 'Projeto' },
     { icon: CreditCard, label: 'Método' },
-    { icon: Lock, label: 'Dados' }, 
     { icon: ShieldCheck, label: 'Confirmar' }
   ];
 
@@ -122,20 +124,20 @@ export default function AssinaturaFlow() {
     {
       id: 'start',
       name: 'Start',
-      price: 'R$ 199/mês',
+      price: 'R$ 199,90',
       features: ['Acesso ao ZM Flow', 'Até 50 CNPJs', 'Suporte Email', '1 Projeto/mês']
     },
     {
       id: 'growth',
       name: 'Growth',
-      price: 'R$ 499/mês',
+      price: 'R$ 499,90',
       features: ['Tudo do Start', 'Robô de CNDs', 'Gerador de Contratos', 'Suporte WhatsApp', '3 Projetos/mês'],
       popular: true
     },
     {
       id: 'enterprise',
       name: 'Enterprise',
-      price: 'Sob Consulta',
+      price: 'R$ 999,90',
       features: ['API Dedicada', 'Apps Personalizados', 'Suporte 24/7', 'Projetos Ilimitados']
     }
   ];
@@ -163,19 +165,11 @@ export default function AssinaturaFlow() {
             {stepsIcons.map((s, i) => {
               const Icon = s.icon;
               const isActive = step >= i;
-              const isCurrent = step === i;
               
               return (
                 <div key={i} className="flex flex-col items-center gap-3 relative group cursor-default">
-                  <div 
-                    className={`
-                      w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center transition-all duration-300 border-2
-                      ${isActive 
-                        ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_20px_rgba(147,51,234,0.5)] scale-110' 
-                        : 'bg-[#0a0a0a] border-white/10 text-gray-500 group-hover:border-white/30'}
-                    `}
-                  >
-                    <Icon className={`w-4 h-4 md:w-5 md:h-5 ${isCurrent ? 'animate-pulse' : ''}`} />
+                  <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center transition-all duration-300 border-2 ${isActive ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_20px_rgba(147,51,234,0.5)] scale-110' : 'bg-[#0a0a0a] border-white/10 text-gray-500 group-hover:border-white/30'}`}>
+                    <Icon className="w-4 h-4 md:w-5 md:h-5" />
                   </div>
                   <span className={`hidden md:block text-xs font-medium uppercase tracking-wider transition-colors ${isActive ? 'text-white' : 'text-gray-600'}`}>
                     {s.label}
@@ -186,37 +180,38 @@ export default function AssinaturaFlow() {
           </div>
         </div>
 
-        {/* MENSAGEM DE ERRO (Se houver) */}
+        {/* MENSAGEM DE ERRO */}
         {errorMsg && (
-          <div className="bg-red-500/20 border border-red-500 text-red-200 p-4 rounded-xl mb-6 text-center animate-pulse">
-            ⚠️ {errorMsg}
+          <div className="bg-red-500/20 border border-red-500 text-red-200 p-4 rounded-xl mb-6 text-center animate-pulse flex items-center justify-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> {errorMsg}
           </div>
         )}
 
         <AnimatePresence mode="wait">
           
-          {/* PASSO 0: IDENTIFICAÇÃO (ATUALIZADO COM CPF/TEL) */}
+          {/* PASSO 0: IDENTIFICAÇÃO */}
           {step === 0 && (
             <motion.div 
               key="step0"
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }}
               className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 md:p-12 shadow-2xl relative overflow-hidden"
             >
-              <h2 className="text-3xl font-bold mb-2">Quem é você?</h2>
-              <p className="text-gray-400 mb-8">Precisamos desses dados para gerar sua nota fiscal e acesso.</p>
+              <h2 className="text-3xl font-bold mb-2">Vamos começar</h2>
+              <p className="text-gray-400 mb-8">Confirme seus dados para vincularmos sua assinatura.</p>
               
               <div className="space-y-6 max-w-md mx-auto">
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-gray-300 ml-1">Nome Completo</label>
                   <input 
                     value={formData.nome}
+                    readOnly={isLogged} // Se logado, trava o campo
                     onChange={(e) => updateForm('nome', e.target.value)}
-                    className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
-                    placeholder="Ex: Gustavo Santos"
+                    className={`w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none ${isLogged ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    placeholder="Seu Nome"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-gray-300 ml-1">E-mail Corporativo</label>
+                  <label className="text-sm font-medium text-gray-300 ml-1">E-mail de Acesso</label>
                   <input 
                     value={formData.email}
                     onChange={(e) => updateForm('email', e.target.value)}
@@ -224,27 +219,11 @@ export default function AssinaturaFlow() {
                     placeholder="seu@email.com"
                   />
                 </div>
-                {/* CAMPOS NOVOS OBRIGATÓRIOS PARA PAGAMENTO */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300 ml-1">CPF</label>
-                    <input 
-                        value={formData.cpf}
-                        onChange={(e) => updateForm('cpf', e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
-                        placeholder="000.000.000-00"
-                    />
+                {!isLogged && (
+                    <div className="bg-purple-900/20 border border-purple-500/30 p-4 rounded-xl text-sm text-purple-200 text-center">
+                        Você precisará criar uma conta ou fazer login no próximo passo.
                     </div>
-                    <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-300 ml-1">Celular</label>
-                    <input 
-                        value={formData.telefone}
-                        onChange={(e) => updateForm('telefone', e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
-                        placeholder="(11) 99999-9999"
-                    />
-                    </div>
-                </div>
+                )}
               </div>
             </motion.div>
           )}
@@ -255,7 +234,7 @@ export default function AssinaturaFlow() {
               key="step1"
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
             >
-              <h2 className="text-3xl font-bold mb-2 text-center">Selecione o Nível</h2>
+              <h2 className="text-3xl font-bold mb-2 text-center">Escolha seu Plano</h2>
               <div className="grid md:grid-cols-3 gap-6 mt-8">
                 {plans.map((plan) => (
                   <div 
@@ -281,91 +260,57 @@ export default function AssinaturaFlow() {
             </motion.div>
           )}
 
-          {/* PASSO 2: DETALHES DO PROJETO */}
+          {/* PASSO 2: DETALHES DO PROJETO (Briefing Simples) */}
           {step === 2 && (
             <motion.div 
               key="step2"
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
-              className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl w-full max-w-5xl"
+              className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 md:p-10 shadow-2xl w-full max-w-3xl mx-auto"
             >
-              <h2 className="text-2xl font-bold mb-6 flex items-center gap-3">
-                <Bot className="text-purple-500 w-8 h-8" /> Briefing Técnico
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-3 justify-center">
+                <Bot className="text-purple-500 w-8 h-8" /> O que vamos construir?
               </h2>
-              
-              <div className="grid md:grid-cols-2 gap-8">
-                {/* Coluna da Esquerda */}
-                <div className="space-y-5">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Tipo de Projeto</label>
-                      <select 
-                        value={formData.projectType}
-                        onChange={(e) => updateForm('projectType', e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="" disabled>Selecione...</option>
-                        <option value="SaaS">Sistema SaaS</option>
-                        <option value="App Mobile">App Mobile (iOS/Android)</option>
-                        <option value="E-commerce">E-commerce / Loja</option>
-                        <option value="Landing Page">Landing Page</option>
-                        <option value="Dashboard">Dashboard Interno</option>
-                        <option value="Outro">Outro</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Orçamento Aprox.</label>
-                      <select 
-                        value={formData.budget}
-                        onChange={(e) => updateForm('budget', e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none appearance-none cursor-pointer"
-                      >
-                        <option value="" disabled>Selecione...</option>
-                        <option value="ate-5k">Até R$ 5.000</option>
-                        <option value="5k-15k">R$ 5.000 - R$ 15.000</option>
-                        <option value="15k-30k">R$ 15.000 - R$ 30.000</option>
-                        <option value="30k+">Acima de R$ 30.000</option>
-                      </select>
-                    </div>
+              <div className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Tipo de Projeto</label>
+                    <select 
+                      value={formData.projectType}
+                      onChange={(e) => updateForm('projectType', e.target.value)}
+                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white focus:border-purple-500 outline-none appearance-none cursor-pointer"
+                    >
+                      <option value="" disabled>Selecione...</option>
+                      <option value="SaaS">Sistema SaaS</option>
+                      <option value="App Mobile">App Mobile</option>
+                      <option value="E-commerce">E-commerce</option>
+                      <option value="Outro">Outro</option>
+                    </select>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Objetivo Principal</label>
-                    <input 
-                      value={formData.projectGoal}
-                      onChange={(e) => updateForm('projectGoal', e.target.value)}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-3 text-white placeholder-gray-600 focus:border-purple-500 outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Coluna da Direita */}
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Descrição Detalhada</label>
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-wider ml-1">Breve Descrição</label>
                     <textarea 
                       value={formData.projectDescription}
                       onChange={(e) => updateForm('projectDescription', e.target.value)}
-                      className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-purple-500 focus:bg-white/10 outline-none transition-all resize-none leading-relaxed text-sm"
-                      placeholder="Descreva funcionalidades..."
+                      className="w-full h-32 bg-white/5 border border-white/10 rounded-xl p-4 text-white focus:border-purple-500 outline-none resize-none"
+                      placeholder="Ex: Quero um sistema para controlar estoque de..."
                     />
                   </div>
-                </div>
               </div>
             </motion.div>
           )}
 
-          {/* PASSO 3: MÉTODO */}
+          {/* PASSO 3: MÉTODO DE PAGAMENTO */}
           {step === 3 && (
             <motion.div 
               key="step3"
               initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }}
               className="max-w-3xl mx-auto"
             >
-              <h2 className="text-3xl font-bold mb-8 text-center">Como deseja pagar?</h2>
+              <h2 className="text-3xl font-bold mb-8 text-center">Forma de Pagamento</h2>
               <div className="grid md:grid-cols-3 gap-4">
                 {[
                   { id: 'pix', name: 'PIX', desc: 'Aprovação Imediata', icon: Zap, color: 'text-yellow-400' },
-                  { id: 'card', name: 'Cartão', desc: 'Até 12x sem juros', icon: CreditCard, color: 'text-purple-400' },
-                  { id: 'boleto', name: 'Boleto', desc: 'Vencimento em 3 dias', icon: FileText, color: 'text-blue-400' }
+                  { id: 'card', name: 'Cartão', desc: 'Até 12x', icon: CreditCard, color: 'text-purple-400' },
+                  { id: 'boleto', name: 'Boleto', desc: 'Vencimento 3 dias', icon: FileText, color: 'text-blue-400' }
                 ].map((method) => (
                   <div 
                     key={method.id}
@@ -381,7 +326,7 @@ export default function AssinaturaFlow() {
                     </div>
                     {formData.paymentMethod === method.id && (
                       <div className="mt-2 text-purple-400 text-xs font-bold uppercase flex items-center gap-1">
-                         <CheckCircle className="w-3 h-3" /> Selecionado
+                          <CheckCircle className="w-3 h-3" /> Selecionado
                       </div>
                     )}
                   </div>
@@ -390,88 +335,10 @@ export default function AssinaturaFlow() {
             </motion.div>
           )}
 
-          {/* PASSO 4: PREENCHIMENTO DOS DADOS DE PAGAMENTO */}
+          {/* PASSO 4: CONFIRMAÇÃO FINAL (Substituindo dados sensíveis por checkout seguro) */}
           {step === 4 && (
             <motion.div 
               key="step4"
-              initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}
-              className="max-w-xl mx-auto bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 shadow-2xl relative"
-            >
-              
-              {formData.paymentMethod === 'card' && (
-                <div>
-                  <h2 className="text-2xl font-bold mb-6 text-center">Dados do Cartão</h2>
-                  {/* Cartão Visual */}
-                  <div className="w-full aspect-[1.58/1] rounded-2xl bg-gradient-to-br from-purple-600 to-indigo-800 p-6 mb-8 relative shadow-xl overflow-hidden">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl"></div>
-                    <div className="flex justify-between items-start mb-8">
-                       <div className="w-12 h-8 bg-white/20 rounded"></div> 
-                       <span className="font-mono text-white/50 text-sm">Crédito</span>
-                    </div>
-                    <div className="font-mono text-xl md:text-2xl text-white tracking-widest mb-4 drop-shadow-md">
-                      {cardData.number || '0000 0000 0000 0000'}
-                    </div>
-                    <div className="flex justify-between items-end">
-                      <div>
-                        <span className="text-[10px] text-white/60 uppercase block mb-1">Titular</span>
-                        <span className="font-medium text-white tracking-wide uppercase text-sm">{cardData.name || 'SEU NOME'}</span>
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-white/60 uppercase block mb-1">Validade</span>
-                        <span className="font-medium text-white tracking-wide">{cardData.expiry || 'MM/AA'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Campos do Cartão */}
-                  <div className="space-y-4">
-                    <input 
-                      name="number" placeholder="Número do Cartão" maxLength={19}
-                      onChange={handleCardChange} value={cardData.number}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all" 
-                    />
-                    <input 
-                      name="name" placeholder="Nome Impresso no Cartão" 
-                      onChange={handleCardChange} value={cardData.name}
-                      className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all uppercase" 
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        name="expiry" placeholder="MM/AA" maxLength={5}
-                        onChange={handleCardChange} value={cardData.expiry}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all text-center" 
-                      />
-                      <input 
-                        name="cvc" placeholder="CVC" maxLength={3}
-                        onChange={handleCardChange} value={cardData.cvc}
-                        className="w-full bg-white/5 border border-white/10 rounded-xl p-4 outline-none focus:border-purple-500 transition-all text-center" 
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* PIX e BOLETO - Mantidos igual antes */}
-              {formData.paymentMethod === 'pix' && (
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold mb-4">Em Breve</h2>
-                    <p className="text-gray-400">Implementação do PIX em andamento.</p>
-                </div>
-              )}
-               {formData.paymentMethod === 'boleto' && (
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold mb-4">Em Breve</h2>
-                     <p className="text-gray-400">Implementação do Boleto em andamento.</p>
-                </div>
-              )}
-
-            </motion.div>
-          )}
-
-          {/* PASSO 5: CONFIRMAÇÃO FINAL */}
-          {step === 5 && (
-            <motion.div 
-              key="step5"
               initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 1.05 }}
               className="max-w-2xl mx-auto bg-[#0a0a0a] border border-white/10 rounded-3xl p-8 overflow-hidden relative shadow-2xl"
             >
@@ -481,8 +348,8 @@ export default function AssinaturaFlow() {
                 <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/20 animate-pulse">
                   <ShieldCheck className="w-10 h-10 text-green-500" />
                 </div>
-                <h2 className="text-2xl font-bold">Tudo Pronto!</h2>
-                <p className="text-gray-400">Revise e confirme para iniciar.</p>
+                <h2 className="text-2xl font-bold">Ambiente Seguro</h2>
+                <p className="text-gray-400">Revise seu pedido antes de ir para o pagamento.</p>
               </div>
 
               <div className="space-y-4 bg-white/5 rounded-2xl p-6 border border-white/5">
@@ -490,10 +357,10 @@ export default function AssinaturaFlow() {
                   <div>
                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Cliente</p>
                     <p className="font-medium text-white">{formData.nome}</p>
-                    <p className="text-xs text-gray-500">{formData.cpf}</p>
+                    <p className="text-xs text-gray-500">{formData.email}</p>
                   </div>
                   <div className="text-right">
-                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total</p>
+                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Plano</p>
                     <p className="font-bold text-purple-400 text-lg">{formData.plan || 'Start'}</p>
                   </div>
                 </div>
@@ -503,12 +370,19 @@ export default function AssinaturaFlow() {
                       <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Método</p>
                       <p className="text-white capitalize">{formData.paymentMethod}</p>
                    </div>
-                   {formData.paymentMethod === 'card' && (
-                     <div className="text-right">
-                       <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Final do Cartão</p>
-                       <p className="text-white font-mono">**** {cardData.number.slice(-4) || '****'}</p>
-                     </div>
-                   )}
+                   <div className="text-right">
+                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total</p>
+                     <p className="font-bold text-white text-xl">
+                        {plans.find(p => p.name === formData.plan)?.price}
+                     </p>
+                   </div>
+                </div>
+
+                <div className="mt-4 bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg flex items-start gap-3">
+                    <Lock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-200 leading-relaxed">
+                        Ao clicar em <strong>Confirmar e Pagar</strong>, você será redirecionado para a página segura do nosso processador de pagamentos (Asaas) para finalizar a transação com criptografia bancária.
+                    </p>
                 </div>
               </div>
             </motion.div>
@@ -529,9 +403,9 @@ export default function AssinaturaFlow() {
           )}
           
           <button
-            onClick={step === 5 ? handleSubmit : nextStep}
+            onClick={step === 4 ? handleSubmit : nextStep}
             disabled={
-                (step === 0 && (!formData.nome || !formData.email || !formData.cpf || !formData.telefone)) ||
+                (step === 0 && !formData.nome) ||
                 (step === 1 && !formData.plan) || 
                 (step === 3 && !formData.paymentMethod) || 
                 isLoading
@@ -545,11 +419,11 @@ export default function AssinaturaFlow() {
             `}
           >
             {isLoading ? (
-              <>Processando <span className="animate-spin">⏳</span></>
+              <>Processando <Loader2 className="animate-spin w-5 h-5" /></>
             ) : (
-              step === 5 ? 'Pagar e Contratar' : 'Continuar Avançando'
+              step === 4 ? 'Confirmar e Pagar' : 'Continuar'
             )}
-            {!isLoading && step !== 5 && <ChevronRight className="w-5 h-5" />}
+            {!isLoading && step !== 4 && <ChevronRight className="w-5 h-5" />}
           </button>
         </div>
       </div>
