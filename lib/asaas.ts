@@ -64,7 +64,7 @@ export async function criarAssinatura(clienteIdAsaas: string, valor: number) {
 
 // --- 3. CRIAÇÃO DE ASSINATURA CARTÃO (Para não quebrar o build) ---
 // O erro mostrava que você tem um arquivo tentando importar isso
-export async function criarAssinaturaCartao(clienteIdAsaas: string, valor: number, cardData: any) {
+export async function criarAssinaturaCartao(clienteIdAsaas: string, valor: number, cardData: any, holderInfo: any, p0: string) {
     const apiKey = process.env.ASAAS_ACCESS_TOKEN;
     
     // Lógica básica de cartão (Placeholder para compilar)

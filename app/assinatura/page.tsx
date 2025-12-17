@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-// --- COMPONENTE COM A LÓGICA (INTERNO) ---
+// --- COMPONENTE INTERNO (LÓGICA) ---
 function AssinaturaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,12 +30,26 @@ function AssinaturaContent() {
     telefone: '', 
     paymentMethod: '',
     plan: '',
+    // Campos de Projeto (Opcionais)
     projectType: '',
     projectDescription: ''
   });
 
+  // Estados do Cartão de Crédito
+  const [cardData, setCardData] = useState({
+    number: '',
+    name: '',
+    expiry: '',
+    cvc: ''
+  });
+
   const updateForm = (key: string, value: any) => {
     setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  const handleCardChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setCardData(prev => ({ ...prev, [name]: value }));
   };
 
   // Verifica Login e URL ao carregar
@@ -44,7 +58,7 @@ function AssinaturaContent() {
     const storedId = localStorage.getItem('nevox_user_id');
     const storedName = localStorage.getItem('nevox_user_name');
     
-    // Pega o plano da URL (?plano=Start)
+    // Pega o plano da URL (?plano=Start) se existir
     const urlPlan = searchParams.get('plano');
     if (urlPlan) updateForm('plan', urlPlan);
 
@@ -56,6 +70,7 @@ function AssinaturaContent() {
   }, [searchParams]);
 
   const nextStep = () => {
+    // Bloqueio se não estiver logado no Passo 0
     if (step === 0 && !isLogged) {
         localStorage.setItem('temp_plan_choice', formData.plan);
         alert("Para continuar, você precisa criar sua conta ou fazer login.");
@@ -67,6 +82,7 @@ function AssinaturaContent() {
   
   const prevStep = () => setStep(prev => prev - 1);
 
+  // --- FUNÇÃO DE PAGAMENTO REAL ---
   const handleSubmit = async () => {
     setIsLoading(true);
     setErrorMsg("");
@@ -74,28 +90,78 @@ function AssinaturaContent() {
     try {
       if (!userId) throw new Error("Usuário não identificado. Faça login novamente.");
 
+      // Preparar dados do Cartão (Se for cartão)
+      let cardPayload = null;
+      let holderPayload = null;
+
+      if (formData.paymentMethod === 'card') {
+         // Validação simples
+         if(cardData.number.length < 13 || !cardData.cvc || !cardData.expiry) {
+             throw new Error("Dados do cartão incompletos.");
+         }
+
+         const expiryParts = cardData.expiry.split('/');
+         const month = expiryParts[0];
+         const year = expiryParts[1]?.length === 2 ? `20${expiryParts[1]}` : expiryParts[1];
+
+         cardPayload = {
+            holderName: cardData.name,
+            number: cardData.number.replace(/\s/g, ''),
+            expiryMonth: month,
+            expiryYear: year,
+            ccv: cardData.cvc
+         };
+
+         // Dados do titular (obrigatório para antifraude)
+         holderPayload = {
+            name: formData.nome,
+            email: formData.email,
+            cpfCnpj: formData.cpf.replace(/\D/g, ''),
+            postalCode: '00000-000', 
+            addressNumber: 'SN',
+            phone: formData.telefone.replace(/\D/g, '')
+         };
+      }
+
+      // CHAMA A API
       const response = await fetch("/api/payment/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             userId: userId,
-            plano: formData.plan || 'Start'
+            plano: formData.plan || 'Start',
+            paymentMethod: formData.paymentMethod, // 'card', 'pix' ou 'boleto'
+            cardData: cardPayload,
+            holderInfo: holderPayload
         }),
       });
 
       const result = await response.json();
 
-      if (!result.success) throw new Error(result.error || "Erro ao processar assinatura.");
+      if (!result.success) {
+        throw new Error(result.error || "Erro ao processar assinatura.");
+      }
 
-      if (result.paymentUrl) {
-          window.location.href = result.paymentUrl;
+      // --- SUCESSO ---
+      if (formData.paymentMethod === 'card') {
+          // SE FOR CARTÃO: Sucesso direto, vai pro Dashboard
+          alert("Assinatura confirmada com sucesso! Bem-vindo.");
+          router.push('/dashboard');
       } else {
-          throw new Error("Link de pagamento não gerado.");
+          // SE FOR PIX/BOLETO: Abre o link do Asaas
+          if (result.paymentUrl) {
+             window.location.href = result.paymentUrl;
+          } else {
+             // Caso raro onde deu sucesso mas sem link
+             router.push('/dashboard');
+          }
       }
 
     } catch (error: any) {
       console.error(error);
       setErrorMsg(error.message || "Erro de conexão.");
+      // Se der erro no cartão, volta para a tela de cartão
+      if (formData.paymentMethod === 'card') setStep(3);
     } finally {
       setIsLoading(false);
     }
@@ -105,9 +171,13 @@ function AssinaturaContent() {
     { icon: User, label: 'Você' },
     { icon: Package, label: 'Plano' },
     { icon: Bot, label: 'Projeto' },
-    { icon: CreditCard, label: 'Método' },
-    { icon: ShieldCheck, label: 'Confirmar' }
+    { icon: CreditCard, label: 'Método' }, // Passo 3
+    { icon: ShieldCheck, label: 'Confirmar' } // Passo 4 (Cartão é aqui se selecionado, ou confirmação final)
   ];
+
+  // Se for cartão, adicionamos um passo extra visualmente ou tratamos no render
+  // Para simplificar, vamos manter a estrutura de passos e renderizar o cartão dentro do passo de confirmação ou criar um passo extra.
+  // Ajuste: Vou renderizar o input de cartão no Passo 4 se o método for cartão.
 
   const plans = [
     {
@@ -207,6 +277,28 @@ function AssinaturaContent() {
                     placeholder="seu@email.com"
                   />
                 </div>
+                {/* CPF e Telefone são obrigatórios para o Asaas */}
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-300 ml-1">CPF</label>
+                        <input 
+                            value={formData.cpf}
+                            onChange={(e) => updateForm('cpf', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
+                            placeholder="000.000.000-00"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-gray-300 ml-1">Celular</label>
+                        <input 
+                            value={formData.telefone}
+                            onChange={(e) => updateForm('telefone', e.target.value)}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none"
+                            placeholder="(11) 99999-9999"
+                        />
+                    </div>
+                 </div>
+
                 {!isLogged && (
                     <div className="bg-purple-900/20 border border-purple-500/30 p-4 rounded-xl text-sm text-purple-200 text-center">
                         Você precisará criar uma conta ou fazer login no próximo passo.
@@ -323,7 +415,7 @@ function AssinaturaContent() {
             </motion.div>
           )}
 
-          {/* PASSO 4: CONFIRMAÇÃO */}
+          {/* PASSO 4: CONFIRMAÇÃO (E DADOS DO CARTÃO SE NECESSÁRIO) */}
           {step === 4 && (
             <motion.div 
               key="step4"
@@ -336,43 +428,66 @@ function AssinaturaContent() {
                 <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4 border border-green-500/20 animate-pulse">
                   <ShieldCheck className="w-10 h-10 text-green-500" />
                 </div>
-                <h2 className="text-2xl font-bold">Ambiente Seguro</h2>
-                <p className="text-gray-400">Revise seu pedido antes de ir para o pagamento.</p>
+                <h2 className="text-2xl font-bold">Resumo do Pedido</h2>
+                <p className="text-gray-400">Revise antes de confirmar.</p>
               </div>
 
-              <div className="space-y-4 bg-white/5 rounded-2xl p-6 border border-white/5">
-                <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Cliente</p>
-                    <p className="font-medium text-white">{formData.nome}</p>
-                    <p className="text-xs text-gray-500">{formData.email}</p>
-                  </div>
-                  <div className="text-right">
-                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Plano</p>
-                    <p className="font-bold text-purple-400 text-lg">{formData.plan || 'Start'}</p>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between items-center pt-2">
-                   <div>
-                      <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Método</p>
-                      <p className="text-white capitalize">{formData.paymentMethod}</p>
-                   </div>
-                   <div className="text-right">
-                     <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total</p>
-                     <p className="font-bold text-white text-xl">
-                        {plans.find(p => p.name === formData.plan)?.price}
-                     </p>
-                   </div>
-                </div>
+              <div className="space-y-4 bg-white/5 rounded-2xl p-6 border border-white/5 mb-6">
+                 {/* Resumo */}
+                 <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                    <div>
+                        <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Plano</p>
+                        <p className="font-bold text-white text-lg">{formData.plan || 'Start'}</p>
+                    </div>
+                    <div className="text-right">
+                        <p className="text-xs text-gray-500 uppercase font-bold tracking-wider">Total</p>
+                        <p className="font-bold text-purple-400 text-xl">{plans.find(p => p.name === formData.plan)?.price}</p>
+                    </div>
+                 </div>
+              </div>
 
-                <div className="mt-4 bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg flex items-start gap-3">
+              {/* SE FOR CARTÃO, MOSTRA OS CAMPOS AQUI */}
+              {formData.paymentMethod === 'card' ? (
+                 <div className="space-y-4 animate-in fade-in">
+                     <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Dados do Cartão</h3>
+                     
+                     <div className="space-y-3">
+                        <input 
+                            name="number" placeholder="Número do Cartão" maxLength={19}
+                            onChange={handleCardChange} value={cardData.number}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500 transition-all" 
+                        />
+                        <input 
+                            name="name" placeholder="Nome Impresso (Ex: JOAO S SILVA)" 
+                            onChange={handleCardChange} value={cardData.name}
+                            className="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500 transition-all uppercase" 
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                            <input 
+                                name="expiry" placeholder="Validade (MM/AA)" maxLength={5}
+                                onChange={handleCardChange} value={cardData.expiry}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500 transition-all text-center" 
+                            />
+                            <input 
+                                name="cvc" placeholder="CVC (3 dígitos)" maxLength={4}
+                                onChange={handleCardChange} value={cardData.cvc}
+                                className="w-full bg-white/5 border border-white/10 rounded-xl p-3 outline-none focus:border-purple-500 transition-all text-center" 
+                            />
+                        </div>
+                     </div>
+                     <div className="mt-4 flex items-center gap-2 text-xs text-green-400 justify-center">
+                         <Lock className="w-3 h-3" /> Transação Criptografada (256-bit SSL)
+                     </div>
+                 </div>
+              ) : (
+                <div className="mt-4 bg-blue-900/20 border border-blue-500/30 p-4 rounded-lg flex items-start gap-3">
                     <Lock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
-                    <p className="text-xs text-blue-200 leading-relaxed">
-                        Ao clicar em <strong>Confirmar e Pagar</strong>, você será redirecionado para a página segura do Asaas para finalizar a transação com criptografia bancária.
+                    <p className="text-sm text-blue-200 leading-relaxed">
+                        Ao clicar em <strong>Pagar Agora</strong>, você será redirecionado para a fatura segura do Asaas (Pix/Boleto).
                     </p>
                 </div>
-              </div>
+              )}
+
             </motion.div>
           )}
 
@@ -393,7 +508,7 @@ function AssinaturaContent() {
           <button
             onClick={step === 4 ? handleSubmit : nextStep}
             disabled={
-                (step === 0 && !formData.nome) ||
+                (step === 0 && (!formData.nome || !formData.cpf)) ||
                 (step === 1 && !formData.plan) || 
                 (step === 3 && !formData.paymentMethod) || 
                 isLoading
@@ -409,7 +524,7 @@ function AssinaturaContent() {
             {isLoading ? (
               <>Processando <Loader2 className="animate-spin w-5 h-5" /></>
             ) : (
-              step === 4 ? 'Confirmar e Pagar' : 'Continuar'
+              step === 4 ? (formData.paymentMethod === 'card' ? 'Pagar Agora' : 'Gerar Fatura') : 'Continuar'
             )}
             {!isLoading && step !== 4 && <ChevronRight className="w-5 h-5" />}
           </button>
@@ -420,7 +535,6 @@ function AssinaturaContent() {
 }
 
 // --- PÁGINA PRINCIPAL (WRAPPER COM SUSPENSE) ---
-// Isso corrige o erro de build!
 export default function AssinaturaPage() {
   return (
     <Suspense fallback={
