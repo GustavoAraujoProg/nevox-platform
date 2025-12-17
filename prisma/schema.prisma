@@ -5,34 +5,29 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-
   url       = env("PRISMA_DATABASE_URL") 
   directUrl = env("POSTGRES_URL")
 }
 
 model User {
-  id              String    @id @default(uuid())
-  name            String
-  email           String    @unique
-  cpf             String?
-  phone           String?
+  id              String   @id @default(uuid())
+  name            String?
+  email           String   @unique
   password        String?
+  cpf             String?  
+  mobilePhone     String?
+  plan            String   @default("None")
+  status          String   @default("PENDING") 
+  projectStage    String   @default("analise") 
   asaasCustomerId String?
-  status          String    @default("PENDING")
-  plan            String    @default("None")
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-
-  // --- ADICIONE ESTA LINHA AQUI EMBAIXO ---
-  projects        Project[] 
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  projects        Project[]
 }
 
-// O seu model Project já deve estar lá embaixo, não precisa mexer nele
 model Project {
   id          String   @id @default(uuid())
   title       String
-  // ... outros campos do seu projeto ...
   userId      String
   user        User     @relation(fields: [userId], references: [id])
 }

@@ -12,7 +12,8 @@ export async function POST(request: Request) {
         name: true,
         email: true,
         plan: true,
-        status: true // ACTIVE ou PENDING
+        status: true,
+        projectStage: true // <--- ESSA LINHA É OBRIGATÓRIA
       }
     });
 
