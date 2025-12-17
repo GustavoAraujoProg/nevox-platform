@@ -1,6 +1,7 @@
+// app/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react'; // Adicionei useEffect
+import React, { useState, useEffect } from 'react'; 
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, Rocket, Code2, CheckCircle, Zap, X, Send, 
@@ -20,7 +21,7 @@ const BackgroundGrid = () => (
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  // --- LÓGICA DE LOGIN (NOVO) ---
+  // --- LÓGICA DE LOGIN (CONECTADA) ---
   const [hasAccess, setHasAccess] = useState(false);
   const [userName, setUserName] = useState('');
 
@@ -28,8 +29,10 @@ export default function Home() {
 
   // Verifica se o usuário já tem o acesso salvo no computador
   useEffect(() => {
-    const token = localStorage.getItem('zm_access_token');
-    const name = localStorage.getItem('zm_user_name');
+    // AQUI ESTÁ A MUDANÇA: Usamos 'nevox_' para conversar com o Login
+    const token = localStorage.getItem('nevox_token');
+    const name = localStorage.getItem('nevox_user_name');
+    
     if (token) {
       setHasAccess(true);
       if (name) setUserName(name.split(' ')[0]); // Pega só o primeiro nome
@@ -37,11 +40,16 @@ export default function Home() {
   }, []);
 
   const openCheckout = (planName: string) => {
+    // Se já estiver logado, vai pro checkout direto, senão pede login no fluxo
     router.push(`/assinatura?plano=${planName}`);
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('zm_access_token');
+    // Limpa as chaves certas
+    localStorage.removeItem('nevox_token');
+    localStorage.removeItem('nevox_user_name');
+    localStorage.removeItem('nevox_user_id');
+    
     setHasAccess(false);
     window.location.reload();
   };
@@ -53,7 +61,7 @@ export default function Home() {
       {/* --- MENU SUPERIOR INTELIGENTE --- */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
             <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center shadow-[0_0_15px_rgba(147,51,234,0.5)]">
               <Bot className="w-5 h-5 text-white" />
             </div>
@@ -69,8 +77,8 @@ export default function Home() {
             
             {/* --- LÓGICA DO BOTÃO MUDANDO --- */}
             {hasAccess ? (
-              <div className="flex items-center gap-4 pl-4 border-l border-white/10">
-                 <span className="text-white font-medium">Olá, {userName}</span>
+              <div className="flex items-center gap-4 pl-4 border-l border-white/10 animate-in fade-in">
+                 <span className="text-white font-medium text-xs">Olá, {userName}</span>
                  <button 
                    onClick={() => router.push('/dashboard')}
                    className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20"
@@ -142,9 +150,9 @@ export default function Home() {
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           ) : (
-            <button onClick={() => setIsChatOpen(true)} className="group h-14 px-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(147,51,234,0.5)] flex items-center justify-center gap-2">
-              Iniciar Projeto
-              <Bot className="w-5 h-5 group-hover:rotate-12 transition-transform" />
+            <button onClick={() => openCheckout('Start')} className="group h-14 px-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(147,51,234,0.5)] flex items-center justify-center gap-2">
+              Começar Agora
+              <Rocket className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
             </button>
           )}
         </motion.div>
@@ -218,7 +226,7 @@ export default function Home() {
   );
 }
 
-// --- COMPONENTES AUXILIARES (Mantidos) ---
+// --- COMPONENTES AUXILIARES (Mantidos do seu código) ---
 function TechCard({ icon, title, desc }: any) {
   return (
     <div className="p-6 rounded-xl bg-black border border-white/10 hover:border-purple-500/50 transition-all flex flex-col items-center text-center hover:-translate-y-1">
