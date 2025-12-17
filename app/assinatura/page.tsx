@@ -1,16 +1,16 @@
 // app/assinatura/page.tsx
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CreditCard, FileText, CheckCircle, ChevronRight, 
-  ChevronLeft, Bot, User, Package, ShieldCheck, Zap, Lock, AlertTriangle,
-  Loader2
+  ChevronLeft, Bot, User, Package, ShieldCheck, Zap, Lock, AlertTriangle, Loader2
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 
-export default function AssinaturaFlow() {
+// --- COMPONENTE COM A LÓGICA (INTERNO) ---
+function AssinaturaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -30,37 +30,34 @@ export default function AssinaturaFlow() {
     telefone: '', 
     paymentMethod: '',
     plan: '',
-    // Campos de Projeto (Opcionais para salvar depois)
     projectType: '',
     projectDescription: ''
   });
 
-  // Verifica Login ao carregar
+  const updateForm = (key: string, value: any) => {
+    setFormData(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Verifica Login e URL ao carregar
   useEffect(() => {
     const token = localStorage.getItem('nevox_token');
     const storedId = localStorage.getItem('nevox_user_id');
     const storedName = localStorage.getItem('nevox_user_name');
     
-    // Se veio um plano na URL, já seleciona
+    // Pega o plano da URL (?plano=Start)
     const urlPlan = searchParams.get('plano');
     if (urlPlan) updateForm('plan', urlPlan);
 
     if (token && storedId) {
       setIsLogged(true);
       setUserId(storedId);
-      // Preenche o nome se tiver
       if (storedName) updateForm('nome', storedName);
     }
   }, [searchParams]);
 
-  const updateForm = (key: string, value: any) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
-  };
-
   const nextStep = () => {
-    // Bloqueio se não estiver logado no Passo 0
     if (step === 0 && !isLogged) {
-        localStorage.setItem('temp_plan_choice', formData.plan); // Salva para depois
+        localStorage.setItem('temp_plan_choice', formData.plan);
         alert("Para continuar, você precisa criar sua conta ou fazer login.");
         router.push('/cadastro');
         return;
@@ -70,17 +67,13 @@ export default function AssinaturaFlow() {
   
   const prevStep = () => setStep(prev => prev - 1);
 
-  // --- FUNÇÃO DE PAGAMENTO REAL ---
   const handleSubmit = async () => {
     setIsLoading(true);
     setErrorMsg("");
 
     try {
-      if (!userId) {
-        throw new Error("Usuário não identificado. Faça login novamente.");
-      }
+      if (!userId) throw new Error("Usuário não identificado. Faça login novamente.");
 
-      // 1. Chama a API de Assinatura (A que cria o Link do Asaas)
       const response = await fetch("/api/payment/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,12 +85,8 @@ export default function AssinaturaFlow() {
 
       const result = await response.json();
 
-      if (!result.success) {
-        throw new Error(result.error || "Erro ao processar assinatura.");
-      }
+      if (!result.success) throw new Error(result.error || "Erro ao processar assinatura.");
 
-      // 2. SUCESSO! Redireciona para o Link Seguro do Asaas
-      // Lá o cliente paga com Pix, Boleto ou Cartão com segurança total
       if (result.paymentUrl) {
           window.location.href = result.paymentUrl;
       } else {
@@ -165,7 +154,6 @@ export default function AssinaturaFlow() {
             {stepsIcons.map((s, i) => {
               const Icon = s.icon;
               const isActive = step >= i;
-              
               return (
                 <div key={i} className="flex flex-col items-center gap-3 relative group cursor-default">
                   <div className={`w-10 h-10 md:w-12 md:h-12 rounded-2xl flex items-center justify-center transition-all duration-300 border-2 ${isActive ? 'bg-purple-600 border-purple-500 text-white shadow-[0_0_20px_rgba(147,51,234,0.5)] scale-110' : 'bg-[#0a0a0a] border-white/10 text-gray-500 group-hover:border-white/30'}`}>
@@ -204,7 +192,7 @@ export default function AssinaturaFlow() {
                   <label className="text-sm font-medium text-gray-300 ml-1">Nome Completo</label>
                   <input 
                     value={formData.nome}
-                    readOnly={isLogged} // Se logado, trava o campo
+                    readOnly={isLogged}
                     onChange={(e) => updateForm('nome', e.target.value)}
                     className={`w-full bg-white/5 border border-white/10 rounded-xl py-4 px-4 text-white focus:border-purple-500 outline-none ${isLogged ? 'opacity-50 cursor-not-allowed' : ''}`}
                     placeholder="Seu Nome"
@@ -260,7 +248,7 @@ export default function AssinaturaFlow() {
             </motion.div>
           )}
 
-          {/* PASSO 2: DETALHES DO PROJETO (Briefing Simples) */}
+          {/* PASSO 2: BRIEFING */}
           {step === 2 && (
             <motion.div 
               key="step2"
@@ -298,7 +286,7 @@ export default function AssinaturaFlow() {
             </motion.div>
           )}
 
-          {/* PASSO 3: MÉTODO DE PAGAMENTO */}
+          {/* PASSO 3: MÉTODO */}
           {step === 3 && (
             <motion.div 
               key="step3"
@@ -335,7 +323,7 @@ export default function AssinaturaFlow() {
             </motion.div>
           )}
 
-          {/* PASSO 4: CONFIRMAÇÃO FINAL (Substituindo dados sensíveis por checkout seguro) */}
+          {/* PASSO 4: CONFIRMAÇÃO */}
           {step === 4 && (
             <motion.div 
               key="step4"
@@ -381,7 +369,7 @@ export default function AssinaturaFlow() {
                 <div className="mt-4 bg-blue-900/20 border border-blue-500/30 p-3 rounded-lg flex items-start gap-3">
                     <Lock className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
                     <p className="text-xs text-blue-200 leading-relaxed">
-                        Ao clicar em <strong>Confirmar e Pagar</strong>, você será redirecionado para a página segura do nosso processador de pagamentos (Asaas) para finalizar a transação com criptografia bancária.
+                        Ao clicar em <strong>Confirmar e Pagar</strong>, você será redirecionado para a página segura do Asaas para finalizar a transação com criptografia bancária.
                     </p>
                 </div>
               </div>
@@ -390,7 +378,7 @@ export default function AssinaturaFlow() {
 
         </AnimatePresence>
 
-        {/* Botões de navegação */}
+        {/* Botões */}
         <div className="flex gap-4 mt-12 max-w-4xl mx-auto px-4">
           {step > 0 && (
             <button
@@ -428,5 +416,19 @@ export default function AssinaturaFlow() {
         </div>
       </div>
     </div>
+  );
+}
+
+// --- PÁGINA PRINCIPAL (WRAPPER COM SUSPENSE) ---
+// Isso corrige o erro de build!
+export default function AssinaturaPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <Loader2 className="w-10 h-10 text-purple-600 animate-spin" />
+      </div>
+    }>
+      <AssinaturaContent />
+    </Suspense>
   );
 }
