@@ -82,19 +82,15 @@ export default function LoginPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Email ou senha inválidos.");
 
-        // Sucesso no Login -> Salva e Entra
-        localStorage.setItem('nevox_token', 'true'); // Token Simples ou JWT
+        localStorage.setItem('nevox_token', data.token); 
         localStorage.setItem('nevox_user_id', data.userId);
         localStorage.setItem('nevox_user_name', data.name);
-        
-        // Se for admin, manda pro admin
         if(data.role === 'admin') {
             router.push('/admin');
         } else {
             router.push('/dashboard');
         }
       }
-
     } catch (error: any) {
       console.error(error);
       setErrorMsg(error.message);
