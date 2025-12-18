@@ -32,7 +32,7 @@ export default function LoginPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Erro ao cadastrar.");
         localStorage.setItem('nevox_token', 'true'); localStorage.setItem('nevox_user_id', data.userId); localStorage.setItem('nevox_user_name', formData.name);
-        router.push('/dashboard');
+        router.push('/');
       } else {
         if (!formData.email || !formData.password) throw new Error("Preencha email e senha.");
         const res = await fetch('/api/auth/login', {
@@ -42,7 +42,7 @@ export default function LoginPage() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || "Email ou senha inválidos.");
         localStorage.setItem('nevox_token', data.token); localStorage.setItem('nevox_user_id', data.userId); localStorage.setItem('nevox_user_name', data.name);
-        if(data.role === 'admin') router.push('/admin'); else router.push('/dashboard');
+        if(data.role === 'admin') router.push('/admin'); else router.push('/');
       }
     } catch (error: any) { setErrorMsg(error.message); } finally { setIsLoading(false); }
   };

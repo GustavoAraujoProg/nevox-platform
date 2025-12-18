@@ -67,7 +67,7 @@ export async function POST(request: Request) {
         status: 'ACTIVE' // Já ativa o sistema para ele não ficar bloqueado
       }
     });
-
+    
     // 6. Resposta Inteligente
     return NextResponse.json({ 
       success: true, 
