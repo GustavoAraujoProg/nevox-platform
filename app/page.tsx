@@ -77,11 +77,9 @@ export default function Home() {
     
     if (confirm) {
         localStorage.setItem('nevox_user_plan', planName);
-        setHasPlan(true);
-        alert(`✅ Pagamento Confirmado!\n\nBem-vindo ao Plano ${planName}. O Dashboard foi liberado.`);
-        
+        setHasPlan(true)
         // AGORA SIM PODE ENTRAR NO DASHBOARD (Onde vai ter o contrato jurídico)
-        router.push('/dashboard');
+        router.push('/assinatura');
     }
   };
 
