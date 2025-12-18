@@ -30,13 +30,12 @@ export async function POST(request: Request) {
 
     if (valor === 0) return NextResponse.json({ error: "Plano inválido" }, { status: 400 });
 
-    // 4. LÓGICA DE DECISÃO (AQUI ESTÁ A MÁGICA)
+    // 4. LÓGICA DE PAGAMENTO
     let resultadoAsaas;
     let tipoPagamento = 'BOLETO'; // Padrão
 
     if (paymentMethod === 'card') {
-      // --- FLUXO CARTÃO (TRANSPARENTE) ---
-      // Aqui usamos os dados que vieram do Frontend para cobrar direto
+      // --- FLUXO CARTÃO ---
       if (!cardData || !holderInfo) {
         return NextResponse.json({ error: "Dados do cartão faltando" }, { status: 400 });
       }
@@ -46,34 +45,39 @@ export async function POST(request: Request) {
         valor, 
         cardData, 
         holderInfo,
-        "0.0.0.0" // IP (Opcional)
+        "0.0.0.0"
       );
       
       tipoPagamento = 'CREDIT_CARD';
 
     } else {
-      // --- FLUXO PIX/BOLETO (REDIRECIONAMENTO) ---
-      // Pix e Boleto funcionam melhor mandando para a fatura do Asaas
-      const metodoAsaas = paymentMethod === 'pix' ? 'PIX' : 'BOLETO';
-      resultadoAsaas = await criarAssinatura(user.asaasCustomerId, valor); // Usa a função padrão que já criamos
-      tipoPagamento = metodoAsaas;
+      // --- FLUXO PIX/BOLETO ---
+      // Nota: Se sua função 'criarAssinatura' aceitar o tipo de pagamento, passe ele aqui.
+      // Por enquanto mantive como estava, mas capturando o resultado corretamente.
+      resultadoAsaas = await criarAssinatura(user.asaasCustomerId, valor); 
+      tipoPagamento = paymentMethod === 'pix' ? 'PIX' : 'BOLETO';
     }
 
-    // 5. Atualiza o Banco com o Plano Novo
+    // 5. ATUALIZA O BANCO (CORRIGIDO PARA PENDING)
+    // CUIDADO: Se você deixar 'ACTIVE' aqui, o usuário ganha acesso sem pagar.
+    // Mudei para 'PENDING'. O acesso só libera quando o Webhook receber o pagamento.
     await prisma.user.update({
       where: { id: userId },
       data: { 
         plan: plano,
-        status: 'ACTIVE' // Já ativa o sistema para ele não ficar bloqueado
+        status: 'PENDING' // O usuário fica pendente até pagar o Pix/Boleto
       }
     });
     
-    // 6. Resposta Inteligente
+    // 6. RESPOSTA INTELIGENTE (CORREÇÃO DO LINK)
+    // O Asaas pode devolver o link em 'billUrl' (Assinatura), 'invoiceUrl' ou 'bankSlipUrl'.
+    // Pegamos o primeiro que existir.
+    const linkPagamento = resultadoAsaas.billUrl || resultadoAsaas.invoiceUrl || resultadoAsaas.bankSlipUrl || null;
+
     return NextResponse.json({ 
       success: true, 
       method: paymentMethod,
-      // Se for cartão, não tem link, é sucesso direto. Se for Pix, tem link.
-      paymentUrl: resultadoAsaas.invoiceUrl || null, 
+      paymentUrl: linkPagamento, // <--- AQUI ESTAVA O ERRO, AGORA VAI O LINK CERTO
       status: resultadoAsaas.status 
     });
 
