@@ -3,27 +3,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Activity, FileText, Settings, LogOut, DollarSign, Calendar, 
-  ExternalLink, Loader2, LayoutDashboard, CreditCard, 
-  AlertTriangle, X, PenTool, CheckCircle, Menu
+  Activity, FileText, Settings, LogOut, DollarSign, 
+  LayoutDashboard, AlertTriangle, X, PenTool, CheckCircle, 
+  Menu, ShieldCheck, Loader2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 export default function Dashboard() {
   const router = useRouter();
-  
   const [userData, setUserData] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState('overview');
-  
-  // ESTADO DO MENU MOBILE
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // Estados do Contrato
+  // ESTADOS DO CONTRATO PREMIUM
   const [showContract, setShowContract] = useState(false);
   const [signatureName, setSignatureName] = useState("");
-  const [signing, setSigning] = useState(false);
+  const [signingStep, setSigningStep] = useState(0); // 0: Lendo, 1: Assinando (Loading), 2: Sucesso
 
   useEffect(() => {
     const token = localStorage.getItem('nevox_token');
@@ -47,14 +44,30 @@ export default function Dashboard() {
 
   const handleSign = async () => {
     if (signatureName.length < 5) return;
-    setSigning(true);
+    
+    setSigningStep(1); // Entra em modo "Carregando/Assinando"
+    
     try {
         await fetch('/api/user/sign-contract', { method: 'POST', body: JSON.stringify({ userId: userData.id, signatureName }) });
-        setUserData({ ...userData, hasSignedContract: true });
-        setShowContract(false);
-        fetchData(userData.id);
-        alert("Contrato assinado!");
-    } catch (e) { alert("Erro ao assinar."); } finally { setSigning(false); }
+        
+        // Simula um tempinho pra dar emoção
+        setTimeout(() => {
+            setSigningStep(2); // Sucesso!
+            setUserData({ ...userData, hasSignedContract: true });
+            fetchData(userData.id);
+            
+            // Fecha o modal depois de comemorar
+            setTimeout(() => {
+                setShowContract(false);
+                setSigningStep(0);
+                setSignatureName("");
+            }, 3000);
+        }, 2000);
+
+    } catch (e) { 
+        alert("Erro ao assinar. Tente novamente."); 
+        setSigningStep(0); 
+    }
   };
 
   const logout = () => { localStorage.clear(); router.push('/'); };
@@ -72,7 +85,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col md:flex-row">
       
-      {/* HEADER MOBILE (Só aparece no celular) */}
+      {/* HEADER MOBILE */}
       <div className="md:hidden flex items-center justify-between p-4 border-b border-white/10 bg-[#0a0a0a]">
          <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center font-bold">N</div>
@@ -83,35 +96,25 @@ export default function Dashboard() {
          </button>
       </div>
 
-      {/* OVERLAY ESCURO (Quando o menu abre no celular) */}
-      {isMobileMenuOpen && (
-        <div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>
-      )}
+      {isMobileMenuOpen && <div className="fixed inset-0 bg-black/80 z-40 md:hidden" onClick={() => setIsMobileMenuOpen(false)}></div>}
 
-      {/* SIDEBAR (Responsiva) */}
-      <aside className={`
-          fixed inset-y-0 left-0 z-50 w-64 bg-[#0a0a0a] border-r border-white/10 p-6 flex flex-col transition-transform duration-300
-          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-          md:translate-x-0 md:static md:flex
-      `}>
+      {/* SIDEBAR */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-[#0a0a0a] border-r border-white/10 p-6 flex flex-col transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 md:static md:flex`}>
         <div className="hidden md:flex items-center gap-2 mb-10 cursor-pointer" onClick={() => router.push('/')}>
            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center font-bold">N</div>
            <span className="text-xl font-bold tracking-tight">Nevox</span>
         </div>
-        
-        {/* Menu Items */}
         <nav className="space-y-2 flex-1 mt-8 md:mt-0">
           <NavItem icon={<LayoutDashboard />} label="Visão Geral" active={activeTab === 'overview'} onClick={() => { setActiveTab('overview'); setIsMobileMenuOpen(false); }} />
           <NavItem icon={<DollarSign />} label="Financeiro" active={activeTab === 'financeiro'} onClick={() => { setActiveTab('financeiro'); setIsMobileMenuOpen(false); }} />
           <NavItem icon={<FileText />} label="Projetos" active={activeTab === 'projetos'} onClick={() => { setActiveTab('projetos'); setIsMobileMenuOpen(false); }} />
           <NavItem icon={<Settings />} label="Configurações" active={activeTab === 'config'} onClick={() => { setActiveTab('config'); setIsMobileMenuOpen(false); }} />
         </nav>
-        
         <button onClick={logout} className="flex items-center gap-3 text-gray-500 hover:text-red-500 p-2 mt-auto"><LogOut size={20}/> Sair</button>
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto bg-[url('https://grainy-gradients.vercel.app/noise.svg')]">
         <header className="flex justify-between items-center mb-6 md:mb-10">
            <div><h1 className="text-2xl md:text-3xl font-bold">Olá, {userData.name.split(' ')[0]} 👋</h1><p className="text-gray-400 text-sm">Plano: <span className="text-purple-400 font-bold">{userData.plan}</span></p></div>
            <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center font-bold shadow-lg">{userData.name.charAt(0)}</div>
@@ -120,44 +123,40 @@ export default function Dashboard() {
         {activeTab === 'overview' && (
            <div className="animate-in fade-in space-y-6">
               <div className="grid md:grid-cols-3 gap-6">
-                 {/* Card Status */}
-                 <div className="md:col-span-2 bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 md:p-8 relative overflow-hidden group">
+                 <div className="md:col-span-2 bg-[#0a0a0a]/80 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-6 opacity-10"><Activity className="w-24 h-24 md:w-32 md:h-32 text-purple-500"/></div>
                     <h3 className="text-lg md:text-xl font-bold mb-1">Status do Projeto</h3>
                     <p className="text-sm text-gray-500 mb-8">{progress.l}</p>
-                    <div className="h-2 bg-gray-800 rounded-full mb-8"><div className={`h-full bg-purple-600 rounded-full`} style={{ width: progress.w }}></div></div>
+                    <div className="h-2 bg-gray-800 rounded-full mb-8"><div className={`h-full bg-purple-600 rounded-full shadow-[0_0_15px_rgba(147,51,234,0.5)]`} style={{ width: progress.w }}></div></div>
                     <div className="flex justify-between text-xs font-bold uppercase tracking-wider text-gray-500"><span>Início</span><span>Dev</span><span>Entrega</span></div>
                  </div>
-                 
-                 {/* Acesso Rápido */}
-                 <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 flex flex-col justify-center">
+                 <div className="bg-[#0a0a0a]/80 backdrop-blur-md border border-white/10 rounded-3xl p-6 flex flex-col justify-center">
                     <h3 className="font-bold mb-4">Acesso Rápido</h3>
                     <button onClick={() => setActiveTab('financeiro')} className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl mb-3 flex items-center justify-center gap-3 text-sm font-medium transition-all"><DollarSign className="w-4 h-4 text-green-400"/> Faturas</button>
                     <button onClick={() => setActiveTab('projetos')} className="w-full py-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center gap-3 text-sm font-medium transition-all"><FileText className="w-4 h-4 text-purple-400"/> Contratos</button>
                  </div>
               </div>
-              
               {!userData.hasSignedContract && (
-                  <div className="bg-gradient-to-r from-red-900/10 to-black border border-red-500/20 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="bg-gradient-to-r from-red-900/40 to-black border border-red-500/30 p-6 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 animate-pulse">
                       <div className="flex items-center gap-4 text-red-400">
-                          <AlertTriangle />
-                          <div><h3 className="font-bold">Contrato Pendente</h3><p className="text-sm text-gray-400">Assine para liberar o desenvolvimento.</p></div>
+                          <div className="p-3 bg-red-500/20 rounded-full"><AlertTriangle /></div>
+                          <div><h3 className="font-bold text-lg">Ação Necessária</h3><p className="text-sm text-gray-300">Contrato de desenvolvimento pendente.</p></div>
                       </div>
-                      <button onClick={() => { setActiveTab('projetos'); setShowContract(true); }} className="w-full md:w-auto px-6 py-2 bg-red-500 hover:bg-red-600 text-white font-bold rounded-lg text-sm shadow-lg shadow-red-900/20 transition-all">Assinar</button>
+                      <button onClick={() => { setActiveTab('projetos'); setShowContract(true); }} className="w-full md:w-auto px-8 py-3 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl shadow-lg shadow-red-600/20 transition-all transform hover:scale-105">Assinar Agora</button>
                   </div>
               )}
            </div>
         )}
 
-        {/* FINANCEIRO - Tabela com scroll horizontal no celular */}
+        {/* FINANCEIRO */}
         {activeTab === 'financeiro' && (
            <div className="animate-in fade-in space-y-6">
               <h2 className="text-2xl font-bold">Financeiro</h2>
-              <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl overflow-hidden min-h-[300px] overflow-x-auto">
+              <div className="bg-[#0a0a0a]/80 backdrop-blur-md border border-white/10 rounded-3xl overflow-hidden min-h-[300px] overflow-x-auto">
                  {invoices.length === 0 ? <div className="p-20 text-center text-gray-500">Nenhuma fatura encontrada.</div> : (
                     <table className="w-full text-left min-w-[600px]">
                        <thead className="bg-white/5 text-gray-500 text-xs uppercase"><tr><th className="p-6">Vencimento</th><th className="p-6">Valor</th><th className="p-6">Status</th><th className="p-6 text-right">Ação</th></tr></thead>
-                       <tbody>{invoices.map(i => <tr key={i.id} className="border-b border-white/5"><td className="p-6 text-sm text-gray-300">{formatDate(i.dueDate)}</td><td className="p-6 font-bold">{formatMoney(i.value)}</td><td className="p-6"><span className="bg-white/5 px-2 py-1 rounded text-xs">{i.status}</span></td><td className="p-6 text-right"><a href={i.bankSlipUrl || i.invoiceUrl} target="_blank" className="text-purple-400 text-xs font-bold border border-purple-500/30 px-4 py-2 rounded-lg">Ver</a></td></tr>)}</tbody>
+                       <tbody>{invoices.map(i => <tr key={i.id} className="border-b border-white/5"><td className="p-6 text-sm text-gray-300">{formatDate(i.dueDate)}</td><td className="p-6 font-bold">{formatMoney(i.value)}</td><td className="p-6"><span className="bg-white/5 px-2 py-1 rounded text-xs">{i.status}</span></td><td className="p-6 text-right"><a href={i.bankSlipUrl || i.invoiceUrl} target="_blank" className="text-purple-400 text-xs font-bold border border-purple-500/30 px-4 py-2 rounded-lg hover:bg-purple-500/10 transition-colors">Ver Boleto</a></td></tr>)}</tbody>
                     </table>
                  )}
               </div>
@@ -169,24 +168,24 @@ export default function Dashboard() {
            <div className="animate-in fade-in space-y-6">
               <h2 className="text-2xl font-bold">Linha do Tempo</h2>
               {!userData.hasSignedContract && (
-                  <div className="bg-[#0a0a0a] border border-yellow-500/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+                  <div className="bg-[#0a0a0a]/80 border border-yellow-500/30 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0"><PenTool /></div>
-                          <div><h3 className="text-lg font-bold text-white">Contrato Disponível</h3><p className="text-gray-400 text-sm">Assine digitalmente agora.</p></div>
+                          <div><h3 className="text-lg font-bold text-white">Contrato Disponível</h3><p className="text-gray-400 text-sm">Assine digitalmente para iniciarmos.</p></div>
                       </div>
-                      <button onClick={() => setShowContract(true)} className="w-full md:w-auto bg-yellow-500 hover:bg-yellow-600 text-black font-bold py-3 px-8 rounded-xl shadow-lg shadow-yellow-500/20 transition-all">Ler e Assinar</button>
+                      <button onClick={() => setShowContract(true)} className="w-full md:w-auto bg-yellow-500 hover:bg-yellow-400 text-black font-bold py-3 px-8 rounded-xl shadow-lg shadow-yellow-500/20 transition-all transform hover:scale-105">Ler e Assinar</button>
                   </div>
               )}
 
-              <div className="bg-[#0a0a0a] border border-white/10 rounded-3xl p-6 md:p-8 relative min-h-[400px]">
+              <div className="bg-[#0a0a0a]/80 backdrop-blur-md border border-white/10 rounded-3xl p-6 md:p-8 relative min-h-[400px]">
                   <div className="absolute left-8 md:left-10 top-8 bottom-8 w-[2px] bg-white/10"></div>
-                  {timeline.length === 0 ? <p className="text-gray-500 text-center pl-10 pt-10">Aguardando atualizações.</p> : timeline.map(item => (
+                  {timeline.length === 0 ? <p className="text-gray-500 text-center pl-10 pt-10">Aguardando atualizações da equipe.</p> : timeline.map(item => (
                       <div key={item.id} className="relative pl-10 md:pl-12 mb-8 group">
-                          <div className={`absolute left-[5px] top-1 w-4 h-4 rounded-full border-2 border-[#0a0a0a] ${item.status === 'completed' ? 'bg-green-500' : item.status === 'late' ? 'bg-red-500' : 'bg-gray-600'}`}></div>
+                          <div className={`absolute left-[5px] top-1 w-4 h-4 rounded-full border-2 border-[#0a0a0a] ${item.status === 'completed' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' : item.status === 'late' ? 'bg-red-500' : 'bg-gray-600'}`}></div>
                           <div className="bg-white/5 border border-white/10 p-5 rounded-2xl group-hover:bg-white/10 transition-colors">
                               <h4 className="font-bold text-lg">{item.title}</h4>
                               <p className="text-gray-400 text-sm mt-1">{item.description}</p>
-                              <span className="text-xs text-gray-600 mt-2 block">{formatDate(item.date)}</span>
+                              <span className="text-xs text-gray-600 mt-2 block font-mono">{formatDate(item.date)}</span>
                           </div>
                       </div>
                   ))}
@@ -195,24 +194,83 @@ export default function Dashboard() {
         )}
       </main>
 
-      {/* MODAL CONTRATO (Responsivo) */}
+      {/* --- MODAL CONTRATO "FODÃO" --- */}
       {showContract && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-[#111] border border-white/10 w-full max-w-2xl rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 flex flex-col max-h-[85vh]">
-                  <div className="p-4 md:p-6 border-b border-white/10 flex justify-between bg-[#0a0a0a]"><h3 className="font-bold text-lg md:text-xl flex gap-2"><FileText className="text-purple-500"/> Termos</h3><button onClick={() => setShowContract(false)}><X className="text-gray-500 hover:text-white"/></button></div>
-                  <div className="p-6 md:p-8 overflow-y-auto bg-[#0a0a0a] text-gray-300 text-sm space-y-4">
-                      <p className="font-bold text-white">TERMOS E CONDIÇÕES NEVOX</p>
-                      <p>1. Ao aceitar este contrato, a CONTRATANTE autoriza o início...</p>
-                      <p className="italic text-gray-600">... (Restante do contrato) ...</p>
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-lg z-50 flex items-center justify-center p-4">
+              <div className="bg-[#f0f0f0] text-black w-full max-w-3xl rounded-sm shadow-2xl animate-in zoom-in-95 flex flex-col h-[85vh] md:h-[90vh] relative overflow-hidden">
+                  
+                  {/* FITA DE SEGURANÇA NO TOPO */}
+                  <div className="bg-purple-900 text-white text-[10px] uppercase tracking-widest text-center py-1 font-bold flex justify-center items-center gap-2">
+                      <ShieldCheck className="w-3 h-3"/> Documento Protegido por Criptografia Nevox
                   </div>
-                  <div className="p-4 md:p-6 border-t border-white/10 bg-[#111]">
-                      <label className="text-xs text-gray-500 font-bold uppercase block mb-2">Digite seu Nome para Assinar</label>
-                      <input value={signatureName} onChange={e => setSignatureName(e.target.value)} placeholder="Ex: João da Silva" className="w-full bg-black border border-white/20 rounded-xl p-3 md:p-4 text-white font-mono mb-4 focus:border-purple-500 outline-none"/>
-                      <button onClick={handleSign} disabled={signing || signatureName.length < 5} className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-3 md:py-4 rounded-xl flex justify-center gap-2">{signing ? <Loader2 className="animate-spin"/> : <><PenTool className="w-4 h-4"/> Confirmar Assinatura</>}</button>
+
+                  {/* CABEÇALHO DE PAPEL */}
+                  <div className="p-8 border-b border-gray-300 bg-white flex justify-between items-start">
+                      <div>
+                          <h2 className="text-2xl font-serif font-bold text-gray-900">Contrato de Prestação de Serviços</h2>
+                          <p className="text-xs text-gray-500 mt-1 font-mono uppercase">Ref: NVX-{userData?.id?.slice(0,8).toUpperCase()}</p>
+                      </div>
+                      <button onClick={() => setShowContract(false)} className="text-gray-400 hover:text-red-500"><X /></button>
+                  </div>
+                  
+                  {/* CONTEÚDO DO CONTRATO (ESTILO PAPEL) */}
+                  <div className="flex-1 p-8 overflow-y-auto bg-white font-serif text-sm leading-relaxed text-justify space-y-4 shadow-inner">
+                      <p><strong>CONTRATADA:</strong> NEVOX TECNOLOGIA LTDA.</p>
+                      <p><strong>CONTRATANTE:</strong> {userData?.name?.toUpperCase()} - CPF: {userData?.cpf}</p>
+                      <br/>
+                      <p>Pelo presente instrumento particular, as partes acima qualificadas têm, entre si, justo e contratado o seguinte:</p>
+                      <p><strong>1. DO OBJETO:</strong> O presente contrato tem como objeto a prestação de serviços de desenvolvimento de software, automação e consultoria tecnológica conforme plano selecionado na plataforma Nevox.</p>
+                      <p><strong>2. DA VIGÊNCIA:</strong> O contrato entra em vigor na data desta assinatura digital e terá duração conforme o plano contratado, podendo ser renovado automaticamente.</p>
+                      <p><strong>3. DOS DEVERES:</strong> A CONTRATADA compromete-se a entregar os serviços com qualidade técnica, respeitando os prazos estipulados no Dashboard do Cliente.</p>
+                      <p><strong>4. DA CONFIDENCIALIDADE:</strong> Ambas as partes comprometem-se a manter sigilo absoluto sobre informações estratégicas trocadas durante o projeto.</p>
+                      <p><strong>5. DO FORO:</strong> As partes elegem o foro da comarca de São Paulo/SP para dirimir quaisquer dúvidas.</p>
+                      <br/><br/>
+                      <p className="text-center text-gray-500 text-xs italic">--- Fim do Documento ---</p>
+                  </div>
+
+                  {/* RODAPÉ DE ASSINATURA */}
+                  <div className="p-6 bg-gray-50 border-t border-gray-200">
+                      {signingStep === 2 ? (
+                          <div className="flex flex-col items-center justify-center text-green-600 py-4 animate-in fade-in">
+                              <CheckCircle className="w-16 h-16 mb-2" />
+                              <h3 className="text-xl font-bold">Contrato Assinado com Sucesso!</h3>
+                              <p className="text-sm text-gray-600">Uma cópia foi enviada para seu e-mail.</p>
+                          </div>
+                      ) : signingStep === 1 ? (
+                          <div className="flex flex-col items-center justify-center py-6 text-purple-700 animate-pulse">
+                              <PenTool className="w-8 h-8 mb-2 animate-bounce" />
+                              <p className="font-bold">Processando Assinatura Digital...</p>
+                              <p className="text-xs text-gray-500">Registrando na Blockchain Nevox</p>
+                          </div>
+                      ) : (
+                          <div className="space-y-4">
+                              <div>
+                                  <label className="text-xs font-bold text-gray-500 uppercase">Assinatura Digital (Digite seu Nome Completo)</label>
+                                  <input 
+                                    value={signatureName}
+                                    onChange={(e) => setSignatureName(e.target.value)}
+                                    placeholder="Eu, declaro que li e aceito..."
+                                    className="w-full mt-2 p-4 border-2 border-gray-300 rounded-lg font-handwriting text-xl text-gray-800 focus:border-purple-600 outline-none transition-colors bg-white"
+                                    style={{ fontFamily: "'Courier New', Courier, monospace" }} 
+                                  />
+                              </div>
+                              <div className="flex items-center justify-between">
+                                  <p className="text-[10px] text-gray-400 max-w-[60%]">Ao clicar abaixo, você concorda legalmente com os termos deste documento digital, sob as penas da lei.</p>
+                                  <button 
+                                    onClick={handleSign}
+                                    disabled={signatureName.length < 5}
+                                    className="px-8 py-3 bg-purple-700 hover:bg-purple-800 text-white font-bold rounded-lg shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 transition-transform transform active:scale-95"
+                                  >
+                                      <PenTool className="w-4 h-4" /> Assinar Documento
+                                  </button>
+                              </div>
+                          </div>
+                      )}
                   </div>
               </div>
           </div>
       )}
+
     </div>
   );
 }

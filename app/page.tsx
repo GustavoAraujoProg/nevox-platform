@@ -24,8 +24,9 @@ export default function Home() {
   // --- MENU MOBILE ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // --- LÓGICA DE LOGIN ---
-  const [hasAccess, setHasAccess] = useState(false);
+  // --- LÓGICA DE ACESSO E PLANOS ---
+  const [hasAccess, setHasAccess] = useState(false); // Logado?
+  const [hasPlan, setHasPlan] = useState(false);     // Pagou?
   const [userName, setUserName] = useState('');
 
   const router = useRouter(); 
@@ -33,24 +34,64 @@ export default function Home() {
   useEffect(() => {
     const token = localStorage.getItem('nevox_token');
     const name = localStorage.getItem('nevox_user_name');
+    const plan = localStorage.getItem('nevox_user_plan'); // Verifica se já comprou
     
     if (token) {
       setHasAccess(true);
       if (name) setUserName(name.split(' ')[0]); 
+      if (plan && plan !== 'null') setHasPlan(true); // Se tiver plano salvo, libera
     }
   }, []);
 
-  const openCheckout = (planName: string) => {
-    router.push(`/assinatura?plano=${planName}`);
+  const handleLogout = () => {
+    localStorage.clear(); // Limpa tudo
+    setHasAccess(false);
+    setHasPlan(false);
+    setIsMobileMenuOpen(false); 
+    window.location.reload();
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('nevox_token');
-    localStorage.removeItem('nevox_user_name');
-    localStorage.removeItem('nevox_user_id');
-    setHasAccess(false);
-    setIsMobileMenuOpen(false); // Fecha menu se sair
-    window.location.reload();
+  // --- O GUARDIÃO (BLOQUEIO DE ACESSO) ---
+  const handleDashboardEnter = () => {
+    if (!hasPlan) {
+      // BLOQUEIA SE NÃO PAGOU
+      alert("⚠️ ACESSO RESTRITO!\n\nVocê precisa assinar um plano para acessar o Dashboard.\nEscolha uma opção abaixo para liberar seu acesso.");
+      
+      // Rola até os planos
+      const planosSection = document.getElementById('planos');
+      if (planosSection) planosSection.scrollIntoView({ behavior: 'smooth' });
+      
+      setIsMobileMenuOpen(false);
+    } else {
+      // LIBERA SE JÁ PAGOU (Lá dentro vai ter o contrato)
+      router.push('/dashboard');
+    }
+  };
+
+  // --- SIMULAÇÃO DE PAGAMENTO ---
+  const handlePurchase = (planName: string) => {
+    if (!hasAccess) {
+        alert("Crie uma conta ou faça login primeiro!");
+        router.push('/login');
+        return;
+    }
+
+    const confirm = window.confirm(`Simular pagamento do plano ${planName}?`);
+    
+    if (confirm) {
+        // 1. Salva que pagou
+        localStorage.setItem('nevox_user_plan', planName);
+        setHasPlan(true);
+        
+        // 2. Avisa e Redireciona
+        alert(`✅ Pagamento Confirmado!\n\nBem-vindo ao Plano ${planName}. Seu acesso foi liberado.`);
+        router.push('/dashboard'); // Agora vai pro painel assinar o contrato
+    }
+  };
+
+  const openCheckout = (planName: string) => {
+    // Redireciona para nossa função de compra simulada
+    handlePurchase(planName);
   };
 
   return (
@@ -77,14 +118,21 @@ export default function Home() {
             
             {hasAccess ? (
               <div className="flex items-center gap-4 pl-4 border-l border-white/10 animate-in fade-in">
-                 <span className="text-white font-medium text-xs">Olá, {userName}</span>
+                 <div className="text-right hidden lg:block">
+                    <p className="text-white font-medium text-xs">Olá, {userName}</p>
+                    <p className="text-[10px] text-gray-500">{hasPlan ? 'Membro Ativo' : 'Sem Plano'}</p>
+                 </div>
+
+                 {/* BOTÃO DASHBOARD COM BLOQUEIO */}
                  <button 
-                   onClick={() => router.push('/dashboard')}
-                   className="bg-purple-600 hover:bg-purple-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20"
+                   onClick={handleDashboardEnter}
+                   className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg 
+                     ${hasPlan ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-500/20' : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'}`}
                  >
-                   <LayoutDashboard className="w-4 h-4" />
+                   {hasPlan ? <LayoutDashboard className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                    Meu Dashboard
                  </button>
+
                  <button onClick={handleLogout} className="text-gray-500 hover:text-red-400" title="Sair">
                    <LogOut className="w-4 h-4" />
                  </button>
@@ -131,7 +179,10 @@ export default function Home() {
                   {hasAccess ? (
                      <div className="flex flex-col gap-4">
                         <span className="text-gray-400">Logado como <strong className="text-white">{userName}</strong></span>
-                        <button onClick={() => router.push('/dashboard')} className="w-full py-4 bg-purple-600 rounded-xl text-white font-bold flex items-center justify-center gap-2"><LayoutDashboard className="w-5 h-5"/> Acessar Dashboard</button>
+                        <button onClick={handleDashboardEnter} className={`w-full py-4 rounded-xl font-bold flex items-center justify-center gap-2 ${hasPlan ? 'bg-purple-600 text-white' : 'bg-gray-800 text-gray-400'}`}>
+                            {hasPlan ? <LayoutDashboard className="w-5 h-5"/> : <Lock className="w-5 h-5"/>} 
+                            Acessar Dashboard
+                        </button>
                         <button onClick={handleLogout} className="text-red-400 flex items-center justify-center gap-2"><LogOut className="w-4 h-4"/> Sair</button>
                      </div>
                   ) : (
@@ -183,9 +234,10 @@ export default function Home() {
           transition={{ delay: 0.3 }}
           className="flex flex-col sm:flex-row gap-4 w-full justify-center"
         >
+          {/* BOTÃO PRINCIPAL COM LÓGICA DE PLANO */}
           {hasAccess ? (
-            <button onClick={() => router.push('/dashboard')} className="group h-14 px-8 rounded-full bg-green-600 hover:bg-green-500 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2">
-              Acessar Painel Agora
+            <button onClick={handleDashboardEnter} className={`group h-14 px-8 rounded-full font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2 ${hasPlan ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>
+              {hasPlan ? 'Acessar Painel Agora' : 'Começar Agora'}
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </button>
           ) : (
@@ -226,6 +278,7 @@ export default function Home() {
         </div>
       </section>
 
+      {/* --- PLANOS --- */}
       <section id="planos" className="relative z-10 py-20 px-4 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-bold mb-4">Planos & Investimento</h2>
