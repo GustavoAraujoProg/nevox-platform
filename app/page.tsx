@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Bot, Rocket, Code2, CheckCircle, Zap, X, Send, 
   CreditCard, MessageCircle, FileText, Lock, ChevronRight, 
-  Search, Cpu, Database, Globe, Shield, ChevronDown, LayoutDashboard, LogOut
+  Search, Cpu, Database, Globe, Shield, ChevronDown, LayoutDashboard, LogOut, Menu
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
@@ -21,36 +21,35 @@ const BackgroundGrid = () => (
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
   
-  // --- LÓGICA DE LOGIN (CONECTADA) ---
+  // --- MENU MOBILE ---
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  
+  // --- LÓGICA DE LOGIN ---
   const [hasAccess, setHasAccess] = useState(false);
   const [userName, setUserName] = useState('');
 
   const router = useRouter(); 
 
-  // Verifica se o usuário já tem o acesso salvo no computador
   useEffect(() => {
-    // AQUI ESTÁ A MUDANÇA: Usamos 'nevox_' para conversar com o Login
     const token = localStorage.getItem('nevox_token');
     const name = localStorage.getItem('nevox_user_name');
     
     if (token) {
       setHasAccess(true);
-      if (name) setUserName(name.split(' ')[0]); // Pega só o primeiro nome
+      if (name) setUserName(name.split(' ')[0]); 
     }
   }, []);
 
   const openCheckout = (planName: string) => {
-    // Se já estiver logado, vai pro checkout direto, senão pede login no fluxo
     router.push(`/assinatura?plano=${planName}`);
   };
 
   const handleLogout = () => {
-    // Limpa as chaves certas
     localStorage.removeItem('nevox_token');
     localStorage.removeItem('nevox_user_name');
     localStorage.removeItem('nevox_user_id');
-    
     setHasAccess(false);
+    setIsMobileMenuOpen(false); // Fecha menu se sair
     window.location.reload();
   };
 
@@ -58,7 +57,7 @@ export default function Home() {
     <div className="relative min-h-screen text-white font-sans overflow-x-hidden selection:bg-purple-500 selection:text-white bg-black">
       <BackgroundGrid />
 
-      {/* --- MENU SUPERIOR INTELIGENTE --- */}
+      {/* --- MENU SUPERIOR INTELIGENTE (RESPONSIVO) --- */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
@@ -68,6 +67,7 @@ export default function Home() {
             <span className="text-xl font-bold tracking-tighter text-white">Nevox</span>
           </div>
           
+          {/* MENU DESKTOP (Escondido no celular 'hidden md:flex') */}
           <div className="hidden md:flex gap-6 text-sm text-gray-400 items-center">
             <a href="#como-funciona" className="hover:text-white transition-colors">Processo</a>
             <a href="/projetos" className="text-purple-400 font-bold hover:text-purple-300 transition-colors flex items-center gap-1">
@@ -75,7 +75,6 @@ export default function Home() {
             </a>
             <a href="#planos" className="hover:text-white transition-colors">Planos</a>
             
-            {/* --- LÓGICA DO BOTÃO MUDANDO --- */}
             {hasAccess ? (
               <div className="flex items-center gap-4 pl-4 border-l border-white/10 animate-in fade-in">
                  <span className="text-white font-medium text-xs">Olá, {userName}</span>
@@ -93,7 +92,6 @@ export default function Home() {
             ) : (
               <a href="/login" className="hover:text-white transition-colors">Login Cliente</a>
             )}
-            
           </div>
 
           {!hasAccess && (
@@ -104,7 +102,48 @@ export default function Home() {
               Falar com a IA
             </button>
           )}
+
+          {/* BOTÃO HAMBÚRGUER (SÓ APARECE NO CELULAR) */}
+          <button 
+            className="md:hidden p-2 text-gray-300 hover:text-white transition-colors"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+             {isMobileMenuOpen ? <X /> : <Menu />}
+          </button>
         </div>
+
+        {/* --- MENU MOBILE EXPANDIDO (SLIDE DOWN) --- */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="md:hidden bg-black/95 border-b border-white/10 overflow-hidden backdrop-blur-xl"
+            >
+               <div className="p-6 flex flex-col space-y-6 text-center">
+                  <a href="#como-funciona" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-gray-300 hover:text-white">Como Funciona</a>
+                  <a href="/projetos" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-purple-400 font-bold flex items-center justify-center gap-2"><Rocket className="w-4 h-4"/> Projetos</a>
+                  <a href="#planos" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-gray-300 hover:text-white">Planos</a>
+                  
+                  <div className="w-full h-px bg-white/10"></div>
+
+                  {hasAccess ? (
+                     <div className="flex flex-col gap-4">
+                        <span className="text-gray-400">Logado como <strong className="text-white">{userName}</strong></span>
+                        <button onClick={() => router.push('/dashboard')} className="w-full py-4 bg-purple-600 rounded-xl text-white font-bold flex items-center justify-center gap-2"><LayoutDashboard className="w-5 h-5"/> Acessar Dashboard</button>
+                        <button onClick={handleLogout} className="text-red-400 flex items-center justify-center gap-2"><LogOut className="w-4 h-4"/> Sair</button>
+                     </div>
+                  ) : (
+                     <div className="flex flex-col gap-4">
+                        <a href="/login" className="w-full py-3 border border-white/20 rounded-xl text-white hover:bg-white/5 transition-colors">Login Cliente</a>
+                        <button onClick={() => { setIsChatOpen(true); setIsMobileMenuOpen(false); }} className="w-full py-3 bg-white/10 rounded-xl text-white font-bold flex items-center justify-center gap-2"><Bot className="w-5 h-5"/> Falar com a IA</button>
+                     </div>
+                  )}
+               </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       {/* --- HERO SECTION --- */}
@@ -158,7 +197,7 @@ export default function Home() {
         </motion.div>
       </main>
 
-      {/* --- RESTO DO SITE (MANTIDO) --- */}
+      {/* --- RESTO DO SITE (SEÇÕES) --- */}
       <section id="como-funciona" className="relative z-10 py-20 px-4 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Do Rascunho ao Software</h2>
@@ -172,7 +211,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- NOVA SEÇÃO: TECNOLOGIAS (STACK) --- */}
       <section id="tech" className="relative z-10 py-20 bg-white/5 border-y border-white/5 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
@@ -188,7 +226,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- PLANOS --- */}
       <section id="planos" className="relative z-10 py-20 px-4 max-w-7xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-5xl font-bold mb-4">Planos & Investimento</h2>
@@ -200,7 +237,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* --- FAQ --- */}
       <section className="relative z-10 py-20 px-4 max-w-3xl mx-auto">
         <h2 className="text-3xl font-bold text-center mb-12">Dúvidas Frequentes</h2>
         <div className="space-y-4">
@@ -226,7 +262,7 @@ export default function Home() {
   );
 }
 
-// --- COMPONENTES AUXILIARES (Mantidos do seu código) ---
+// --- COMPONENTES AUXILIARES (Mesmos do original) ---
 function TechCard({ icon, title, desc }: any) {
   return (
     <div className="p-6 rounded-xl bg-black border border-white/10 hover:border-purple-500/50 transition-all flex flex-col items-center text-center hover:-translate-y-1">
