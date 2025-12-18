@@ -20,6 +20,8 @@ model User {
   status          String   @default("PENDING") 
   projectStage    String   @default("analise") 
   hasSignedContract Boolean @default(false)
+  hasActivePlan Boolean   @default(false)
+  contractSignedAt  DateTime?
   asaasCustomerId String?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
