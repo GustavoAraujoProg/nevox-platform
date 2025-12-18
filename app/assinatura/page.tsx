@@ -138,22 +138,27 @@ function AssinaturaContent() {
 
       const result = await response.json();
 
+      console.log("Debug Pagamento:", result); // Log para ver o que a API devolve
+
       if (!result.success) {
         throw new Error(result.error || "Erro ao processar assinatura.");
       }
 
-      // --- SUCESSO ---
+      // --- SUCESSO E REDIRECIONAMENTO ---
       if (formData.paymentMethod === 'card') {
           // SE FOR CARTÃO: Sucesso direto, vai pro Dashboard
           alert("Assinatura confirmada com sucesso! Bem-vindo.");
           router.push('/dashboard');
       } else {
-          // SE FOR PIX/BOLETO: Abre o link do Asaas
-          if (result.paymentUrl) {
-             window.location.href = result.paymentUrl;
+          // SE FOR PIX/BOLETO: Tenta pegar qualquer variação de URL que o Asaas devolva
+          const linkPagamento = result.paymentUrl || result.invoiceUrl || result.bankSlipUrl;
+
+          if (linkPagamento) {
+             window.location.href = linkPagamento;
           } else {
-             // Caso raro onde deu sucesso mas sem link
-             router.push('/dashboard');
+             // CORREÇÃO: Não redireciona para dashboard se falhar o link
+             console.error("Link não encontrado no objeto:", result);
+             throw new Error("A cobrança foi gerada, mas o link de pagamento não foi retornado. Verifique seu e-mail.");
           }
       }
 
@@ -172,12 +177,8 @@ function AssinaturaContent() {
     { icon: Package, label: 'Plano' },
     { icon: Bot, label: 'Projeto' },
     { icon: CreditCard, label: 'Método' }, // Passo 3
-    { icon: ShieldCheck, label: 'Confirmar' } // Passo 4 (Cartão é aqui se selecionado, ou confirmação final)
+    { icon: ShieldCheck, label: 'Confirmar' } // Passo 4
   ];
-
-  // Se for cartão, adicionamos um passo extra visualmente ou tratamos no render
-  // Para simplificar, vamos manter a estrutura de passos e renderizar o cartão dentro do passo de confirmação ou criar um passo extra.
-  // Ajuste: Vou renderizar o input de cartão no Passo 4 se o método for cartão.
 
   const plans = [
     {
