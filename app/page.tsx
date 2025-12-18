@@ -53,7 +53,7 @@ export default function Home() {
   const handleDashboardEnter = () => {
     if (!hasPlan) {
       // SE NÃO TEM PLANO: Bloqueia e avisa
-      alert("⚠️ ACESSO BLOQUEADO!\n\nVocê precisa assinar um plano para acessar o Dashboard.\nRole para baixo e escolha seu plano.");
+      alert(" ACESSO BLOQUEADO!\n\nVocê precisa assinar um plano para acessar o Dashboard.\nRole para baixo e escolha seu plano.");
       
       const planosSection = document.getElementById('planos');
       if (planosSection) planosSection.scrollIntoView({ behavior: 'smooth' });
@@ -73,7 +73,7 @@ export default function Home() {
         return;
     }
 
-    const confirm = window.confirm(`Simular pagamento do plano ${planName}?`);
+    const confirm = window.confirm();
     
     if (confirm) {
         localStorage.setItem('nevox_user_plan', planName);
