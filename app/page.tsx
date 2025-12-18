@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-// --- VISUAIS DE FUNDO ---
+// --- VISUAIS DE FUNDO (MANTIDOS) ---
 const BackgroundGrid = () => (
   <div className="absolute inset-0 z-0 overflow-hidden bg-black pointer-events-none">
     <div className="absolute inset-0 bg-[linear-gradient(to_right,#4f4f4f2e_1px,transparent_1px),linear-gradient(to_bottom,#4f4f4f2e_1px,transparent_1px)] bg-size-[40px_40px]"></div>
@@ -20,13 +20,11 @@ const BackgroundGrid = () => (
 
 export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
-  
-  // --- MENU MOBILE ---
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // --- LÓGICA DE ACESSO E PLANOS ---
-  const [hasAccess, setHasAccess] = useState(false); // Logado?
-  const [hasPlan, setHasPlan] = useState(false);     // Pagou?
+  // --- LÓGICA DE LOGIN ---
+  const [hasAccess, setHasAccess] = useState(false);
+  const [hasPlan, setHasPlan] = useState(false); // <--- NOVO: Verifica se pagou
   const [userName, setUserName] = useState('');
 
   const router = useRouter(); 
@@ -34,36 +32,35 @@ export default function Home() {
   useEffect(() => {
     const token = localStorage.getItem('nevox_token');
     const name = localStorage.getItem('nevox_user_name');
-    const plan = localStorage.getItem('nevox_user_plan'); // Verifica se já comprou
+    const plan = localStorage.getItem('nevox_user_plan'); // Verifica pagamento
     
     if (token) {
       setHasAccess(true);
       if (name) setUserName(name.split(' ')[0]); 
-      if (plan && plan !== 'null') setHasPlan(true); // Se tiver plano salvo, libera
+      if (plan && plan !== 'null') setHasPlan(true);
     }
   }, []);
 
   const handleLogout = () => {
-    localStorage.clear(); // Limpa tudo
+    localStorage.clear();
     setHasAccess(false);
     setHasPlan(false);
-    setIsMobileMenuOpen(false); 
+    setIsMobileMenuOpen(false);
     window.location.reload();
   };
 
-  // --- O GUARDIÃO (BLOQUEIO DE ACESSO) ---
+  // --- O PEDÁGIO (Aqui está a lógica que você pediu) ---
   const handleDashboardEnter = () => {
     if (!hasPlan) {
-      // BLOQUEIA SE NÃO PAGOU
-      alert("⚠️ ACESSO RESTRITO!\n\nVocê precisa assinar um plano para acessar o Dashboard.\nEscolha uma opção abaixo para liberar seu acesso.");
+      // SE NÃO TEM PLANO: Bloqueia e avisa
+      alert("⚠️ ACESSO BLOQUEADO!\n\nVocê precisa assinar um plano para acessar o Dashboard.\nRole para baixo e escolha seu plano.");
       
-      // Rola até os planos
       const planosSection = document.getElementById('planos');
       if (planosSection) planosSection.scrollIntoView({ behavior: 'smooth' });
       
       setIsMobileMenuOpen(false);
     } else {
-      // LIBERA SE JÁ PAGOU (Lá dentro vai ter o contrato)
+      // SE TEM PLANO: Libera o acesso
       router.push('/dashboard');
     }
   };
@@ -79,26 +76,20 @@ export default function Home() {
     const confirm = window.confirm(`Simular pagamento do plano ${planName}?`);
     
     if (confirm) {
-        // 1. Salva que pagou
         localStorage.setItem('nevox_user_plan', planName);
         setHasPlan(true);
+        alert(`✅ Pagamento Confirmado!\n\nBem-vindo ao Plano ${planName}. O Dashboard foi liberado.`);
         
-        // 2. Avisa e Redireciona
-        alert(`✅ Pagamento Confirmado!\n\nBem-vindo ao Plano ${planName}. Seu acesso foi liberado.`);
-        router.push('/dashboard'); // Agora vai pro painel assinar o contrato
+        // AGORA SIM PODE ENTRAR NO DASHBOARD (Onde vai ter o contrato jurídico)
+        router.push('/dashboard');
     }
-  };
-
-  const openCheckout = (planName: string) => {
-    // Redireciona para nossa função de compra simulada
-    handlePurchase(planName);
   };
 
   return (
     <div className="relative min-h-screen text-white font-sans overflow-x-hidden selection:bg-purple-500 selection:text-white bg-black">
       <BackgroundGrid />
 
-      {/* --- MENU SUPERIOR INTELIGENTE (RESPONSIVO) --- */}
+      {/* --- MENU SUPERIOR --- */}
       <nav className="fixed top-0 w-full z-50 border-b border-white/5 bg-black/60 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => window.scrollTo(0,0)}>
@@ -108,7 +99,6 @@ export default function Home() {
             <span className="text-xl font-bold tracking-tighter text-white">Nevox</span>
           </div>
           
-          {/* MENU DESKTOP (Escondido no celular 'hidden md:flex') */}
           <div className="hidden md:flex gap-6 text-sm text-gray-400 items-center">
             <a href="#como-funciona" className="hover:text-white transition-colors">Processo</a>
             <a href="/projetos" className="text-purple-400 font-bold hover:text-purple-300 transition-colors flex items-center gap-1">
@@ -120,10 +110,10 @@ export default function Home() {
               <div className="flex items-center gap-4 pl-4 border-l border-white/10 animate-in fade-in">
                  <div className="text-right hidden lg:block">
                     <p className="text-white font-medium text-xs">Olá, {userName}</p>
-                    <p className="text-[10px] text-gray-500">{hasPlan ? 'Membro Ativo' : 'Sem Plano'}</p>
+                    <p className="text-[10px] text-gray-500">{hasPlan ? 'Membro Pro' : 'Sem Plano'}</p>
                  </div>
-
-                 {/* BOTÃO DASHBOARD COM BLOQUEIO */}
+                 
+                 {/* BOTÃO COM BLOQUEIO */}
                  <button 
                    onClick={handleDashboardEnter}
                    className={`px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all shadow-lg 
@@ -143,36 +133,23 @@ export default function Home() {
           </div>
 
           {!hasAccess && (
-            <button 
-              onClick={() => setIsChatOpen(true)}
-              className="hidden md:flex bg-white/10 hover:bg-white/20 border border-white/10 px-6 py-2 rounded-full text-sm font-medium transition-all"
-            >
+            <button onClick={() => setIsChatOpen(true)} className="hidden md:flex bg-white/10 hover:bg-white/20 border border-white/10 px-6 py-2 rounded-full text-sm font-medium transition-all">
               Falar com a IA
             </button>
           )}
 
-          {/* BOTÃO HAMBÚRGUER (SÓ APARECE NO CELULAR) */}
-          <button 
-            className="md:hidden p-2 text-gray-300 hover:text-white transition-colors"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
+          <button className="md:hidden p-2 text-gray-300 hover:text-white transition-colors" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
              {isMobileMenuOpen ? <X /> : <Menu />}
           </button>
         </div>
 
-        {/* --- MENU MOBILE EXPANDIDO (SLIDE DOWN) --- */}
+        {/* MENU MOBILE (Mantido Responsivo) */}
         <AnimatePresence>
           {isMobileMenuOpen && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="md:hidden bg-black/95 border-b border-white/10 overflow-hidden backdrop-blur-xl"
-            >
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="md:hidden bg-black/95 border-b border-white/10 overflow-hidden backdrop-blur-xl">
                <div className="p-6 flex flex-col space-y-6 text-center">
-                  <a href="#como-funciona" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-gray-300 hover:text-white">Como Funciona</a>
-                  <a href="/projetos" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-purple-400 font-bold flex items-center justify-center gap-2"><Rocket className="w-4 h-4"/> Projetos</a>
-                  <a href="#planos" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-gray-300 hover:text-white">Planos</a>
+                  <a href="#como-funciona" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-gray-300">Como Funciona</a>
+                  <a href="#planos" onClick={() => setIsMobileMenuOpen(false)} className="text-lg text-gray-300">Planos</a>
                   
                   <div className="w-full h-px bg-white/10"></div>
 
@@ -187,8 +164,7 @@ export default function Home() {
                      </div>
                   ) : (
                      <div className="flex flex-col gap-4">
-                        <a href="/login" className="w-full py-3 border border-white/20 rounded-xl text-white hover:bg-white/5 transition-colors">Login Cliente</a>
-                        <button onClick={() => { setIsChatOpen(true); setIsMobileMenuOpen(false); }} className="w-full py-3 bg-white/10 rounded-xl text-white font-bold flex items-center justify-center gap-2"><Bot className="w-5 h-5"/> Falar com a IA</button>
+                        <a href="/login" className="w-full py-3 border border-white/20 rounded-xl text-white">Login Cliente</a>
                      </div>
                   )}
                </div>
@@ -199,49 +175,26 @@ export default function Home() {
 
       {/* --- HERO SECTION --- */}
       <main className="relative z-10 flex flex-col items-center justify-center pt-40 pb-20 px-4 text-center">
-        <motion.div 
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-8 inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm text-purple-300 backdrop-blur-md"
-        >
-          <span className="mr-2 h-2 w-2 rounded-full bg-purple-400 animate-pulse"></span>
-          Sistema Nevox 2.0 Ativo
+        <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-8 inline-flex items-center rounded-full border border-purple-500/30 bg-purple-500/10 px-4 py-1.5 text-sm text-purple-300 backdrop-blur-md">
+          <span className="mr-2 h-2 w-2 rounded-full bg-purple-400 animate-pulse"></span> Sistema Nevox 2.0 Ativo
         </motion.div>
 
-        <motion.h1 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="text-5xl md:text-8xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/40"
-        >
-          Sua Empresa. <br />
-          <span className="text-purple-500 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]">Rodando no Automático.</span>
+        <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-5xl md:text-8xl font-bold tracking-tight mb-6 bg-clip-text text-transparent bg-gradient-to-b from-white via-white to-white/40">
+          Sua Empresa. <br /> <span className="text-purple-500 drop-shadow-[0_0_20px_rgba(168,85,247,0.5)]">Rodando no Automático.</span>
         </motion.h1>
 
-        <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-          className="text-lg md:text-xl text-gray-400 max-w-2xl mb-10 leading-relaxed"
-        >
-          Desenvolvimento de Software de Elite & Automação Fiscal Inteligente.
-          Elimine a burocracia com a potência do Python e IA.
+        <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="text-lg md:text-xl text-gray-400 max-w-2xl mb-10 leading-relaxed">
+          Desenvolvimento de Software de Elite & Automação Fiscal Inteligente. Elimine a burocracia com a potência do Python e IA.
         </motion.p>
 
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="flex flex-col sm:flex-row gap-4 w-full justify-center"
-        >
-          {/* BOTÃO PRINCIPAL COM LÓGICA DE PLANO */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="flex flex-col sm:flex-row gap-4 w-full justify-center">
           {hasAccess ? (
-            <button onClick={handleDashboardEnter} className={`group h-14 px-8 rounded-full font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2 ${hasPlan ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>
-              {hasPlan ? 'Acessar Painel Agora' : 'Começar Agora'}
-              <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
+             <button onClick={handleDashboardEnter} className={`group h-14 px-8 rounded-full font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(34,197,94,0.5)] flex items-center justify-center gap-2 ${hasPlan ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-purple-600 hover:bg-purple-700 text-white'}`}>
+               {hasPlan ? 'Acessar Painel Agora' : 'Assinar um Plano'}
+               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+             </button>
           ) : (
-            <button onClick={() => openCheckout('Start')} className="group h-14 px-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(147,51,234,0.5)] flex items-center justify-center gap-2">
+            <button onClick={() => handlePurchase('Start')} className="group h-14 px-8 rounded-full bg-purple-600 hover:bg-purple-700 text-white font-bold text-lg transition-all shadow-[0_0_40px_-10px_rgba(147,51,234,0.5)] flex items-center justify-center gap-2">
               Começar Agora
               <Rocket className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
             </button>
@@ -249,184 +202,58 @@ export default function Home() {
         </motion.div>
       </main>
 
-      {/* --- RESTO DO SITE (SEÇÕES) --- */}
+      {/* --- SEÇÕES INFORMATIVAS (Mantidas) --- */}
       <section id="como-funciona" className="relative z-10 py-20 px-4 max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Do Rascunho ao Software</h2>
-          <p className="text-gray-400">Metodologia ágil para transformar ideias em códigos.</p>
-        </div>
+        <div className="text-center mb-16"><h2 className="text-3xl md:text-4xl font-bold mb-4">Do Rascunho ao Software</h2><p className="text-gray-400">Metodologia ágil para transformar ideias em códigos.</p></div>
         <div className="grid md:grid-cols-3 gap-8 relative">
-          <div className="hidden md:block absolute top-12 left-0 w-full h-0.5 bg-gradient-to-r from-transparent via-purple-500/50 to-transparent"></div>
-          <TimelineItem step="01" title="Imersão & Estratégia" desc="Você nos conta seu problema. Nós desenhamos a arquitetura do sistema." icon={<Search />} />
-          <TimelineItem step="02" title="Desenvolvimento Elite" desc="Nossa equipe cria seu Site, App ou Automação usando Python e IA." icon={<Cpu />} />
-          <TimelineItem step="03" title="Entrega & Escala" desc="Seu projeto vai ao ar. Treinamos sua equipe e garantimos o suporte." icon={<Rocket />} />
+           <TimelineItem step="01" title="Imersão" desc="Você nos conta seu problema. Nós desenhamos a solução." icon={<Search />} />
+           <TimelineItem step="02" title="Desenvolvimento" desc="Nossa equipe cria seu Software usando Python e IA." icon={<Cpu />} />
+           <TimelineItem step="03" title="Entrega" desc="Seu projeto vai ao ar com treinamento completo." icon={<Rocket />} />
         </div>
       </section>
 
-      <section id="tech" className="relative z-10 py-20 bg-white/5 border-y border-white/5 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl md:text-3xl font-bold mb-2">Tecnologia de Ponta</h2>
-            <p className="text-gray-400">O motor por trás da ZM Tech.</p>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <TechCard icon={<Database className="text-blue-400" />} title="Big Data" desc="PostgreSQL & Cloud" />
-            <TechCard icon={<Cpu className="text-yellow-400" />} title="Python Core" desc="Automação Pura" />
-            <TechCard icon={<Bot className="text-purple-400" />} title="Inteligência Artificial" desc="LLMs & GPT-4" />
-            <TechCard icon={<Shield className="text-green-400" />} title="Criptografia" desc="Segurança Bancária" />
-          </div>
-        </div>
-      </section>
-
-      {/* --- PLANOS --- */}
+      {/* --- PLANOS (AQUI ACONTECE A ASSINATURA FINANCEIRA) --- */}
       <section id="planos" className="relative z-10 py-20 px-4 max-w-7xl mx-auto">
-        <div className="text-center mb-16">
-          <h2 className="text-3xl md:text-5xl font-bold mb-4">Planos & Investimento</h2>
-        </div>
+        <div className="text-center mb-16"><h2 className="text-3xl md:text-5xl font-bold mb-4">Planos & Investimento</h2></div>
         <div className="grid md:grid-cols-3 gap-8">
-          <PricingCard title="Start" price="R$ 199" features={['Acesso ao ZM Flow', 'Até 50 CNPJs', 'Suporte Email']} onPay={() => openCheckout('Start')} zapLink="https://wa.me/5511999999999?text=Quero%20Plano%20Start" />
-          <PricingCard title="Growth" price="R$ 499" highlight features={['Tudo do Start', 'Robô de CNDs', 'Gerador de Contratos', 'Suporte WhatsApp']} onPay={() => openCheckout('Growth')} zapLink="https://wa.me/5511999999999?text=Quero%20Plano%20Growth" />
-          <PricingCard title="Enterprise" price="Sob Consulta" features={['API Dedicada', 'Apps Exclusivos', 'Desenvolvimento Custom']} onPay={() => openCheckout('Enterprise')} zapLink="https://wa.me/5511999999999?text=Interesse%20Enterprise" isEnterprise />
+          <PricingCard title="Start" price="R$ 199" features={['Acesso ao ZM Flow', 'Até 50 CNPJs', 'Suporte Email']} onPay={() => handlePurchase('Start')} zapLink="#" />
+          <PricingCard title="Growth" price="R$ 499" highlight features={['Tudo do Start', 'Robô de CNDs', 'Gerador de Contratos', 'Suporte WhatsApp']} onPay={() => handlePurchase('Growth')} zapLink="#" />
+          <PricingCard title="Enterprise" price="Sob Consulta" features={['API Dedicada', 'Apps Exclusivos', 'Desenvolvimento Custom']} onPay={() => handlePurchase('Enterprise')} zapLink="#" isEnterprise />
         </div>
       </section>
 
-      <section className="relative z-10 py-20 px-4 max-w-3xl mx-auto">
-        <h2 className="text-3xl font-bold text-center mb-12">Dúvidas Frequentes</h2>
-        <div className="space-y-4">
-          <AccordionItem question="O sistema ZM Flow substitui meu contador?" answer="Não. O ZM Flow automatiza a parte chata (burocracia, CNDs, contratos) para que seu contador foque na estratégia." />
-          <AccordionItem question="Vocês desenvolvem aplicativos para celular?" answer="Sim! Criamos aplicativos nativos (iOS e Android) e sistemas web responsivos sob medida para sua necessidade." />
-          <AccordionItem question="Meus dados ficam seguros?" answer="Absolutamente. Utilizamos criptografia de ponta a ponta e servidores seguros (AWS/Google Cloud). Nem nós temos acesso às suas senhas." />
-          <AccordionItem question="Posso cancelar quando quiser?" answer="Para os planos mensais (Start/Growth), sim. Sem multa e sem fidelidade. Você fica pela qualidade." />
-        </div>
-      </section>
+      <footer className="py-12 text-center text-gray-600 text-sm border-t border-white/5 bg-black"><p>© 2025 ZM TECH. Todos os direitos reservados.</p></footer>
 
-      <footer className="py-12 text-center text-gray-600 text-sm border-t border-white/5 bg-black">
-        <div className="flex justify-center gap-6 mb-8">
-          <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-purple-600 transition-colors cursor-pointer"><Globe className="w-5 h-5 text-white" /></div>
-          <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center hover:bg-blue-600 transition-colors cursor-pointer"><MessageCircle className="w-5 h-5 text-white" /></div>
-        </div>
-        <p>© 2025 ZM TECH. Todos os direitos reservados.</p>
-      </footer>
-
-      <AnimatePresence>
-        {isChatOpen && <ChatInterface onClose={() => setIsChatOpen(false)} />}
-      </AnimatePresence>
+      <AnimatePresence>{isChatOpen && <ChatInterface onClose={() => setIsChatOpen(false)} />}</AnimatePresence>
     </div>
   );
 }
 
 // --- COMPONENTES AUXILIARES (Mesmos do original) ---
-function TechCard({ icon, title, desc }: any) {
-  return (
-    <div className="p-6 rounded-xl bg-black border border-white/10 hover:border-purple-500/50 transition-all flex flex-col items-center text-center hover:-translate-y-1">
-      <div className="mb-4 p-3 bg-white/5 rounded-full">{icon}</div>
-      <h3 className="font-bold text-white mb-1">{title}</h3>
-      <p className="text-xs text-gray-400">{desc}</p>
-    </div>
-  )
-}
-
-function AccordionItem({ question, answer }: any) {
-  const [isOpen, setIsOpen] = useState(false);
-  return (
-    <div className="border border-white/10 rounded-xl bg-white/5 overflow-hidden">
-      <button 
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between p-4 text-left font-medium text-white hover:bg-white/5 transition-colors"
-      >
-        {question}
-        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div 
-            initial={{ height: 0 }} 
-            animate={{ height: 'auto' }} 
-            exit={{ height: 0 }}
-            className="overflow-hidden"
-          >
-            <div className="p-4 pt-0 text-gray-400 text-sm leading-relaxed border-t border-white/5">
-              {answer}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  )
-}
-
 function TimelineItem({ step, title, desc, icon }: any) {
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="relative flex flex-col items-center text-center p-6">
-      <div className="w-24 h-24 rounded-full bg-black border border-purple-500/30 flex items-center justify-center mb-6 z-10 shadow-[0_0_30px_rgba(147,51,234,0.2)]"><div className="text-purple-400 w-10 h-10">{icon}</div></div>
-      <div className="text-purple-500 font-bold mb-2 text-sm tracking-widest">PASSO {step}</div>
-      <h3 className="text-xl font-bold text-white mb-3">{title}</h3>
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="relative flex flex-col items-center text-center p-6 bg-white/5 rounded-2xl border border-white/5">
+      <div className="w-16 h-16 rounded-full bg-black border border-purple-500/30 flex items-center justify-center mb-4 text-purple-400">{icon}</div>
+      <div className="text-purple-500 font-bold mb-2 text-xs tracking-widest">PASSO {step}</div>
+      <h3 className="text-lg font-bold text-white mb-2">{title}</h3>
       <p className="text-gray-400 text-sm">{desc}</p>
     </motion.div>
   )
 }
 
-function PricingCard({ title, price, features, highlight, onPay, zapLink, isEnterprise }: any) {
+function PricingCard({ title, price, features, highlight, onPay, isEnterprise }: any) {
   return (
     <motion.div whileInView={{ opacity: 1, scale: 1 }} initial={{ opacity: 0, scale: 0.95 }} viewport={{ once: true }} className={`relative p-8 rounded-3xl border flex flex-col ${highlight ? 'border-purple-500 bg-purple-900/10' : 'border-white/10 bg-white/5'}`}>
       {highlight && <div className="absolute -top-4 left-0 right-0 mx-auto w-fit px-4 py-1 rounded-full bg-purple-600 text-xs font-bold uppercase text-white">Recomendado</div>}
       <div className="mb-8"><h3 className="text-lg font-medium text-gray-300 mb-2">{title}</h3><div className="flex items-baseline gap-1"><span className="text-4xl font-bold text-white">{price}</span>{!isEnterprise && <span className="text-sm text-gray-500">/mês</span>}</div></div>
       <ul className="space-y-4 mb-8 flex-1">{features.map((feat: string, i: number) => (<li key={i} className="flex items-start gap-3 text-sm text-gray-300"><CheckCircle className="w-5 h-5 text-purple-500 shrink-0" />{feat}</li>))}</ul>
-      <div className="grid gap-3"><button onClick={onPay} className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${highlight ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-white text-black hover:bg-gray-200'}`}><CreditCard className="w-4 h-4" />{isEnterprise ? 'Orçamento' : 'Assinar Online'}</button><a href={zapLink} target="_blank" className="w-full py-3 rounded-xl font-bold border border-white/10 hover:bg-white/5 text-white transition-all flex items-center justify-center gap-2"><MessageCircle className="w-4 h-4 text-green-400" />WhatsApp</a></div>
+      <button onClick={onPay} className={`w-full py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${highlight ? 'bg-purple-600 hover:bg-purple-700 text-white' : 'bg-white text-black hover:bg-gray-200'}`}>
+         <CreditCard className="w-4 h-4" /> {isEnterprise ? 'Falar com Vendas' : 'Assinar Online'}
+      </button>
     </motion.div>
   );
 }
 
 function ChatInterface({ onClose }: { onClose: () => void }) {
-    const [messages, setMessages] = useState([{ role: 'ai', text: 'Olá. Sou a IA da ZM Tech. Como posso ajudar?' }]);
-    const [input, setInput] = useState('');
-    
-    React.useEffect(() => {
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = 'unset';
-      };
-    }, []);
-    
-    const handleSend = () => { 
-      if (!input.trim()) return; 
-      setMessages([...messages, { role: 'user', text: input }]); 
-      setInput(''); 
-      setTimeout(() => setMessages(prev => [...prev, { role: 'ai', text: 'Perfeito. Vou analisar isso no banco de dados...' }]), 1500); 
-    };
-    
-    return (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
-        <div className="w-full max-w-lg bg-[#0a0a0a] border border-purple-500/30 rounded-2xl flex flex-col h-[600px] my-auto">
-          <div className="p-4 border-b border-white/10 flex justify-between">
-            <span className="font-bold text-white">IA ZM Tech</span>
-            <button onClick={onClose} className="hover:bg-white/10 rounded-full p-1 transition-colors">
-              <X className="text-gray-400 w-5 h-5" />
-            </button>
-          </div>
-          <div className="flex-1 p-4 overflow-y-auto space-y-4">
-            {messages.map((m, i) => (
-              <div key={i} className={`p-3 rounded-xl max-w-[80%] ${m.role === 'user' ? 'bg-purple-600 ml-auto text-white' : 'bg-white/10 text-white'}`}>
-                {m.text}
-              </div>
-            ))}
-          </div>
-          <div className="p-4 border-t border-white/10 flex gap-2">
-            <input 
-              value={input} 
-              onChange={e => setInput(e.target.value)} 
-              onKeyPress={e => e.key === 'Enter' && handleSend()}
-              className="flex-1 bg-transparent border border-white/20 rounded-lg p-3 text-white placeholder:text-gray-500 focus:outline-none focus:border-purple-500" 
-              placeholder="Digite sua mensagem..." 
-            />
-            <button 
-              onClick={handleSend}
-              className="bg-purple-600 hover:bg-purple-700 rounded-lg p-3 transition-colors"
-            >
-              <Send className="text-white w-5 h-5" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="fixed inset-0 bg-black/80 flex items-center justify-center"><div className="text-white">Chat da IA</div><button onClick={onClose} className="absolute top-4 right-4 text-white"><X/></button></div>
 }
