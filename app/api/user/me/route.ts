@@ -1,3 +1,4 @@
+// app/api/user/me/route.ts - VERSÃO CORRIGIDA FINAL
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -5,46 +6,36 @@ export async function POST(request: Request) {
   try {
     const { userId } = await request.json();
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: "User ID is required" },
-        { status: 400 }
-      );
-    }
-
     const user = await prisma.user.findUnique({
-      where: {
-        id: userId,
-      },
+      where: { id: userId },
       select: {
-        // Campos que já existiam
         id: true,
         name: true,
         email: true,
+        cpf: true,
         plan: true,
         status: true,
         projectStage: true,
-        hasActivePlan: true,     
-        hasSignedContract: true, 
-        contractSignedAt: true,  
-        asaasCustomerId: true,    
-      },
+        hasSignedContract: true,
+        hasActivePlan: true,        // ← IMPORTANTE!
+        contractSignedAt: true
+      }
     });
 
     if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(user);
+    // 🔥 LOG PARA DEBUG
+    console.log(`👤 API /user/me chamada para: ${user.email}`);
+    console.log(`📊 Status: ${user.status}`);
+    console.log(`💳 hasActivePlan: ${user.hasActivePlan}`);
+    console.log(`📝 hasSignedContract: ${user.hasSignedContract}`);
 
-  } catch (error) {
-    console.error("Erro ao buscar usuário:", error);
-    return NextResponse.json(
-      { error: "Internal Server Error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ user });
+    
+  } catch (error: any) {
+    console.error("❌ Erro em /api/user/me:", error);
+    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
