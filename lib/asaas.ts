@@ -61,11 +61,16 @@ export async function criarAssinatura(customerId: string, valor: number) {
         dueDate: dataVencimento.toISOString().split('T')[0],
         description: 'Assinatura Nevox - Desenvolvimento de Software',
         
-        // 🔥 AQUI ESTÁ A MÁGICA: URL DE RETORNO
-        callback: {
-          successUrl: `${BASE_URL}/pagamento/sucesso`, // ← Página de sucesso
-          autoRedirect: true // Redireciona automaticamente após pagar
-        }
+        // 🎯 SOLUÇÃO: Instruções personalizadas que aparecem na fatura
+        externalReference: `user_${customerId}`, // Para rastrear no webhook
+        
+        // Informações adicionais que aparecem na fatura do Asaas
+        split: [{
+          walletId: customerId,
+          fixedValue: 0,
+          percentualValue: 0,
+          description: `Após pagar, volte para: ${BASE_URL}/pagamento/sucesso`
+        }]
       })
     });
 
