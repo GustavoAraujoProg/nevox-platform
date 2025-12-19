@@ -1,14 +1,12 @@
-// app/admin/page.tsx
-"use client";
-
+"use client"; // <--- LINHA 1 SEMPRE
+import { useRouter } from 'next/navigation';
 import React, { useState, useEffect } from 'react';
 import { 
   Users, Activity, Bell, LogOut, Loader2, X, Search, PenTool, 
   RefreshCw, CheckCircle, Clock, AlertTriangle, Menu, Eye, Mail, 
   Download, FileText 
 } from 'lucide-react';
-"use client"
-import { useRouter } from 'next/navigation';
+
 
 export default function AdminPanel() {
   const router = useRouter();
