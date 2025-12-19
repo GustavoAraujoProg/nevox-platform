@@ -13,7 +13,7 @@
     "@prisma/client": "^5.22.0",
     "bcryptjs": "^2.4.3",
     "framer-motion": "^11.0.8",
-    "lucide-react": "^0.344.0",
+    "lucide-react": "^0.562.0",
     "mercadopago": "^2.11.0",
     "next": "^16.0.10",
     "nodemailer": "^7.0.11",
