@@ -7,6 +7,7 @@ import {
   RefreshCw, CheckCircle, Clock, AlertTriangle, Menu, Eye, Mail, 
   Download, FileText 
 } from 'lucide-react';
+"use client"
 import { useRouter } from 'next/navigation';
 
 export default function AdminPanel() {
