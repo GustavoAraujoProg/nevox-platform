@@ -1,148 +1,34 @@
-// app/api/user/sign-contract/route.ts - VERSÃO SEM ERROS
+// app/api/user/sign-contract/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { enviarContratoPorEmail } from "@/lib/mail";
-import PDFDocument from "pdfkit";
+import nodemailer from "nodemailer";
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 
-// Tipo do usuário para o PDF
-type UserForPDF = {
-  id: string;
-  name: string;
-  email: string;
-  cpf: string | null;
-  plan: string | null;
-};
+// Função auxiliar para gerar o PDF (Mesma lógica do download)
+async function gerarPDFContrato(user: any) {
+    const pdfDoc = await PDFDocument.create();
+    const page = pdfDoc.addPage();
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const { height } = page.getSize();
 
-// Função para gerar PDF do contrato
-async function gerarPDFContrato(user: UserForPDF, signatureName: string) {
-  return new Promise<Buffer>((resolve, reject) => {
-    const doc = new PDFDocument({ 
-      size: 'A4',
-      margins: { top: 50, bottom: 50, left: 50, right: 50 }
-    });
-    
-    const chunks: Buffer[] = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.on('error', reject);
+    page.drawText('COMPROVANTE DE ASSINATURA DIGITAL', { x: 50, y: height - 100, size: 18, font });
+    page.drawText(`Este documento certifica a assinatura do plano ${user.plan}.`, { x: 50, y: height - 150, size: 12, font });
+    page.drawText(`Cliente: ${user.name}`, { x: 50, y: height - 180, size: 12, font });
+    page.drawText(`CPF: ${user.cpf}`, { x: 50, y: height - 200, size: 12, font });
+    page.drawText(`Data e Hora: ${new Date().toLocaleString('pt-BR')}`, { x: 50, y: height - 220, size: 12, font });
+    page.drawText('Assinatura Digital Autenticada - Tevox.', { x: 50, y: height - 300, size: 10, font });
 
-    // HEADER
-    doc.fontSize(20)
-       .text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', { align: 'center' });
-    
-    doc.moveDown();
-    doc.fontSize(10)
-       .text(`Referência: NVX-${user.id.substring(0, 8).toUpperCase()}`, { align: 'center' });
-    
-    doc.moveDown(2);
-
-    // PARTES
-    doc.fontSize(12).text('CONTRATADA:');
-    doc.fontSize(10).text('NEVOX TECNOLOGIA LTDA.');
-    doc.text('CNPJ: 00.000.000/0001-00');
-    
-    doc.moveDown();
-    
-    doc.fontSize(12).text('CONTRATANTE:');
-    doc.fontSize(10).text(user.name.toUpperCase());
-    doc.text(`CPF: ${user.cpf || 'Não informado'}`);
-    doc.text(`Email: ${user.email}`);
-    doc.text(`Plano: ${user.plan || 'Start'}`);
-    
-    doc.moveDown(2);
-
-    // CLÁUSULAS
-    doc.fontSize(12).text('CLÁUSULAS CONTRATUAIS', { underline: true });
-    doc.moveDown();
-
-    const clausulas = [
-      {
-        titulo: '1. DO OBJETO',
-        texto: `Prestação de serviços de desenvolvimento de software conforme plano ${user.plan || 'Start'} contratado.`
-      },
-      {
-        titulo: '2. DA VIGÊNCIA',
-        texto: 'Contrato entra em vigor na data desta assinatura digital.'
-      },
-      {
-        titulo: '3. DOS DEVERES',
-        texto: 'A CONTRATADA se compromete a entregar os serviços com qualidade técnica dentro dos prazos acordados.'
-      },
-      {
-        titulo: '4. DA CONFIDENCIALIDADE',
-        texto: 'Ambas as partes mantêm sigilo absoluto sobre informações estratégicas e dados sensíveis.'
-      },
-      {
-        titulo: '5. DO FORO',
-        texto: 'Fica eleito o foro da Comarca de São Paulo/SP para dirimir quaisquer dúvidas oriundas deste contrato.'
-      }
-    ];
-
-    clausulas.forEach(clausula => {
-      doc.fontSize(10).text(clausula.titulo);
-      doc.fontSize(9).text(clausula.texto, { align: 'justify' });
-      doc.moveDown();
-    });
-
-    doc.moveDown(2);
-
-    // ASSINATURA DIGITAL
-    doc.fontSize(11).text('ASSINATURA DIGITAL', { align: 'center' });
-    doc.moveDown();
-    
-    doc.fontSize(10).text('Assinado digitalmente por:', { align: 'center' });
-    doc.fontSize(14).text(signatureName, { align: 'center' });
-    
-    doc.moveDown();
-    const dataAssinatura = new Date().toLocaleString('pt-BR');
-    doc.fontSize(9).text(`Data: ${dataAssinatura}`, { align: 'center' });
-    doc.text(`IP: 0.0.0.0 (Protegido)`, { align: 'center' });
-    doc.text(`Hash: NVX-${Date.now().toString(36).toUpperCase()}-SECURE`, { align: 'center' });
-
-    // FOOTER
-    doc.moveDown(3);
-    doc.fontSize(8)
-       .text('_'.repeat(80), { align: 'center' });
-    doc.text('Documento com validade jurídica - Assinado digitalmente via Nevox Platform', { align: 'center' });
-
-    doc.end();
-  });
+    const pdfBytes = await pdfDoc.save();
+    return Buffer.from(pdfBytes); // Converte para Buffer para o Nodemailer aceitar
 }
 
 export async function POST(request: Request) {
-  console.log("📝 Iniciando processo de assinatura...");
-  
   try {
     const body = await request.json();
     const { userId, signatureName } = body;
 
-    if (!userId || !signatureName) {
-      return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
-    }
-
-    // 1. Busca usuário
-    const user = await prisma.user.findUnique({ 
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        cpf: true,
-        plan: true
-      }
-    });
-
-    // Valida se usuário existe e tem dados obrigatórios
-    if (!user || !user.email || !user.name) {
-      return NextResponse.json({ 
-        error: "Usuário não encontrado ou dados incompletos" 
-      }, { status: 404 });
-    }
-
-    console.log(`✅ Usuário encontrado: ${user.email}`);
-
-    // 2. Atualiza banco (assinatura confirmada)
-    await prisma.user.update({
+    // 1. Atualiza no Banco
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
         hasSignedContract: true,
@@ -150,54 +36,39 @@ export async function POST(request: Request) {
       }
     });
 
-    console.log("✅ Banco atualizado!");
+    // 2. Envia o E-mail
+    try {
+        const pdfBuffer = await gerarPDFContrato(updatedUser);
 
-    // 3. Gera PDF do contrato (agora user.name é garantido como string)
-    console.log("📄 Gerando PDF...");
-    const userForPDF: UserForPDF = {
-      id: user.id,
-      name: user.name, // Garantido não-null pela validação acima
-      email: user.email,
-      cpf: user.cpf,
-      plan: user.plan
-    };
-    
-    const pdfBuffer = await gerarPDFContrato(userForPDF, signatureName);
-    console.log("✅ PDF gerado!");
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: process.env.EMAIL_USER,
+                pass: process.env.EMAIL_PASS
+            }
+        });
 
-    // 4. Envia email (com PDF anexo)
-    console.log("📧 Enviando email...");
-    const dataAssinatura = new Date().toLocaleString('pt-BR');
-    
-    await enviarContratoPorEmail(
-      user.email,
-      user.name,
-      dataAssinatura,
-      pdfBuffer
-    );
+        await transporter.sendMail({
+            from: '"Tevox Legal" <noreply@tevox.com.br>',
+            to: updatedUser.email!,
+            subject: 'Contrato Assinado - Cópia Digital',
+            text: `Olá ${updatedUser.name}, seu contrato foi assinado com sucesso. Segue em anexo a via digital.`,
+            attachments: [
+                {
+                    filename: 'Contrato_Assinado.pdf',
+                    content: pdfBuffer
+                }
+            ]
+        });
 
-    console.log("✅ Email enviado!");
+    } catch (emailError) {
+        console.error("Erro ao enviar e-mail:", emailError);
+    }
 
-    // 5. Cria timeline
-    await prisma.timelineItem.create({
-      data: {
-        userId,
-        title: "Contrato Assinado",
-        description: `Assinado digitalmente por ${signatureName}.`,
-        status: "completed",
-        date: new Date()
-      }
-    });
+    return NextResponse.json({ success: true, date: updatedUser.contractSignedAt });
 
-    return NextResponse.json({ 
-      success: true, 
-      date: new Date().toISOString()
-    });
-
-  } catch (error: any) {
-    console.error("❌ Erro ao assinar contrato:", error);
-    return NextResponse.json({ 
-      error: error.message || "Erro interno" 
-    }, { status: 500 });
+  } catch (error) {
+    console.error("Erro geral:", error);
+    return NextResponse.json({ success: false, error: "Erro ao salvar assinatura." }, { status: 500 });
   }
 }
