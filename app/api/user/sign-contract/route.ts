@@ -1,10 +1,10 @@
 // app/api/user/sign-contract/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import nodemailer from "nodemailer";
-import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import { enviarContratoPorEmail } from "@/lib/mail"; // <--- Importando seu arquivo de email
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 
-// Função auxiliar para gerar o PDF (Mesma lógica do download)
+// Função que gera o PDF na memória (usando pdf-lib para não dar erro na Vercel)
 async function gerarPDFContrato(user: any) {
     const pdfDoc = await PDFDocument.create();
     const page = pdfDoc.addPage();
@@ -12,22 +12,21 @@ async function gerarPDFContrato(user: any) {
     const { height } = page.getSize();
 
     page.drawText('COMPROVANTE DE ASSINATURA DIGITAL', { x: 50, y: height - 100, size: 18, font });
-    page.drawText(`Este documento certifica a assinatura do plano ${user.plan}.`, { x: 50, y: height - 150, size: 12, font });
-    page.drawText(`Cliente: ${user.name}`, { x: 50, y: height - 180, size: 12, font });
-    page.drawText(`CPF: ${user.cpf}`, { x: 50, y: height - 200, size: 12, font });
-    page.drawText(`Data e Hora: ${new Date().toLocaleString('pt-BR')}`, { x: 50, y: height - 220, size: 12, font });
-    page.drawText('Assinatura Digital Autenticada - Tevox.', { x: 50, y: height - 300, size: 10, font });
-
+    page.drawText(`Contratante: ${user.name}`, { x: 50, y: height - 150, size: 12, font });
+    page.drawText(`CPF: ${user.cpf || 'Não informado'}`, { x: 50, y: height - 170, size: 12, font });
+    page.drawText(`Plano: ${user.plan}`, { x: 50, y: height - 190, size: 12, font });
+    page.drawText(`Data: ${new Date().toLocaleString('pt-BR')}`, { x: 50, y: height - 230, size: 12, font });
+    
     const pdfBytes = await pdfDoc.save();
-    return Buffer.from(pdfBytes); // Converte para Buffer para o Nodemailer aceitar
+    return Buffer.from(pdfBytes); 
 }
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { userId, signatureName } = body;
+    const { userId } = body;
 
-    // 1. Atualiza no Banco
+    // 1. Atualiza banco
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -36,39 +35,26 @@ export async function POST(request: Request) {
       }
     });
 
-    // 2. Envia o E-mail
+    // 2. Gera PDF e Envia Email (usando sua lib/mail.ts)
     try {
         const pdfBuffer = await gerarPDFContrato(updatedUser);
-
-        const transporter = nodemailer.createTransport({
-            service: 'gmail',
-            auth: {
-                user: process.env.EMAIL_USER,
-                pass: process.env.EMAIL_PASS
-            }
-        });
-
-        await transporter.sendMail({
-            from: '"Tevox Legal" <noreply@tevox.com.br>',
-            to: updatedUser.email!,
-            subject: 'Contrato Assinado - Cópia Digital',
-            text: `Olá ${updatedUser.name}, seu contrato foi assinado com sucesso. Segue em anexo a via digital.`,
-            attachments: [
-                {
-                    filename: 'Contrato_Assinado.pdf',
-                    content: pdfBuffer
-                }
-            ]
-        });
+        
+        // Chama a função do seu arquivo mail.ts
+        await enviarContratoPorEmail(
+            updatedUser.email!, 
+            updatedUser.name!, 
+            new Date().toLocaleString('pt-BR'),
+            pdfBuffer
+        );
 
     } catch (emailError) {
-        console.error("Erro ao enviar e-mail:", emailError);
+        console.error("Erro no envio de email (mas contrato salvo):", emailError);
     }
 
-    return NextResponse.json({ success: true, date: updatedUser.contractSignedAt });
+    return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error("Erro geral:", error);
-    return NextResponse.json({ success: false, error: "Erro ao salvar assinatura." }, { status: 500 });
+    console.error(error);
+    return NextResponse.json({ success: false, error: "Erro ao salvar" }, { status: 500 });
   }
 }

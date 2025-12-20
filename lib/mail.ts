@@ -1,7 +1,7 @@
-// lib/mail.ts - VERSÃO COMPLETA
+// lib/mail.ts - VERSÃO CORRIGIDA E ADAPTADA
 import nodemailer from 'nodemailer';
 
-// Configuração do transporter (reutilizável)
+// Configuração do transporter
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -20,6 +20,10 @@ export async function enviarContratoPorEmail(
   pdfBuffer?: Buffer // PDF opcional em anexo
 ) {
   
+  // CORREÇÃO TÉCNICA: O Gmail exige que o email entre <> seja o mesmo do login
+  // O nome "Nevox Jurídico" continua aparecendo para o cliente.
+  const remetente = `"Nevox Jurídico" <${process.env.EMAIL_USER}>`;
+
   const htmlCliente = `
     <!DOCTYPE html>
     <html>
@@ -29,13 +33,11 @@ export async function enviarContratoPorEmail(
     <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; background: #f3f4f6;">
       <div style="max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         
-        <!-- Header -->
         <div style="background: linear-gradient(135deg, #7c3aed 0%, #4f46e5 100%); padding: 40px 20px; text-align: center;">
           <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700;">✅ Contrato Assinado</h1>
           <p style="color: #e9d5ff; margin: 10px 0 0 0; font-size: 16px;">Nevox Tecnologia</p>
         </div>
 
-        <!-- Body -->
         <div style="padding: 40px 30px;">
           <p style="font-size: 16px; color: #1f2937; line-height: 1.6; margin: 0 0 20px 0;">
             Olá, <strong>${nomeCliente}</strong>! 👋
@@ -46,7 +48,6 @@ export async function enviarContratoPorEmail(
             Estamos prontos para começar o desenvolvimento do seu projeto! 🚀
           </p>
 
-          <!-- Info Box -->
           <div style="background: #f9fafb; border-left: 4px solid #7c3aed; padding: 20px; margin: 30px 0; border-radius: 8px;">
             <p style="margin: 0 0 10px 0; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Assinante Responsável</p>
             <p style="margin: 0 0 20px 0; font-size: 18px; color: #111827; font-weight: 600;">${nomeCliente}</p>
@@ -66,7 +67,6 @@ export async function enviarContratoPorEmail(
           </p>
         </div>
 
-        <!-- Footer -->
         <div style="background: #f9fafb; padding: 20px 30px; border-top: 1px solid #e5e7eb; text-align: center;">
           <p style="margin: 0; font-size: 12px; color: #9ca3af;">
             © ${new Date().getFullYear()} Nevox Tecnologia • CNPJ 00.000.000/0001-00
@@ -108,9 +108,9 @@ export async function enviarContratoPorEmail(
   `;
 
   try {
-    // Envia para o Cliente (com PDF anexo se fornecido)
+    // Envia para o Cliente
     const emailOptions: any = {
-      from: '"Nevox Jurídico" <noreply@nevox.com>',
+      from: remetente, // <--- AQUI ESTÁ A CORREÇÃO (Usa seu gmail para não bloquear)
       to: emailCliente,
       subject: `✅ Cópia do Contrato Assinado - ${nomeCliente}`,
       html: htmlCliente,
@@ -127,7 +127,7 @@ export async function enviarContratoPorEmail(
 
     // Envia para o Admin
     await transporter.sendMail({
-      from: '"Sistema Nevox" <sistema@nevox.com>',
+      from: remetente, // <--- Correção aqui também
       to: process.env.EMAIL_USER,
       subject: `[ADMIN] 🎉 Novo Contrato: ${nomeCliente}`,
       html: htmlAdmin,
@@ -150,6 +150,9 @@ export async function enviarEmailBoasVindas(
   plano: string
 ) {
   
+  // Define o remetente correto
+  const remetente = `"Nevox" <${process.env.EMAIL_USER}>`;
+
   const html = `
     <!DOCTYPE html>
     <html>
@@ -201,7 +204,7 @@ export async function enviarEmailBoasVindas(
 
   try {
     await transporter.sendMail({
-      from: '"Nevox" <contato@nevox.com>',
+      from: remetente, // <--- AQUI ESTÁ A CORREÇÃO
       to: emailCliente,
       subject: `🎉 Bem-vindo à Nevox - Plano ${plano} Ativado!`,
       html: html,
