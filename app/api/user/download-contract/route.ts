@@ -47,25 +47,25 @@ export async function POST(request: Request) {
       doc.on('error', reject);
 
       // === HEADER ===
-      doc.fontSize(20).font('Helvetica-Bold')
+      doc.fontSize(20)
          .text('CONTRATO DE PRESTAÇÃO DE SERVIÇOS', { align: 'center' });
       
       doc.moveDown();
-      doc.fontSize(10).font('Helvetica')
+      doc.fontSize(10)
          .text(`Referência: NVX-${user.id.substring(0, 8).toUpperCase()}`, { align: 'center' });
       
       doc.moveDown(2);
 
       // === PARTES ===
-      doc.fontSize(12).font('Helvetica-Bold').text('CONTRATADA:');
-      doc.fontSize(10).font('Helvetica')
+      doc.fontSize(12).text('CONTRATADA:');
+      doc.fontSize(10)
          .text('NEVOX TECNOLOGIA LTDA.')
          .text('CNPJ: 00.000.000/0001-00');
       
       doc.moveDown();
       
-      doc.fontSize(12).font('Helvetica-Bold').text('CONTRATANTE:');
-      doc.fontSize(10).font('Helvetica')
+      doc.fontSize(12).text('CONTRATANTE:');
+      doc.fontSize(10)
          .text(userName.toUpperCase())
          .text(`CPF: ${user.cpf || 'Não informado'}`)
          .text(`Email: ${user.email}`)
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
       doc.moveDown(2);
 
       // === CLÁUSULAS ===
-      doc.fontSize(12).font('Helvetica-Bold').text('CLÁUSULAS CONTRATUAIS', { underline: true });
+      doc.fontSize(12).text('CLÁUSULAS CONTRATUAIS', { underline: true });
       doc.moveDown();
 
       const clausulas = [
@@ -116,9 +116,9 @@ export async function POST(request: Request) {
       ];
 
       clausulas.forEach(clausula => {
-        doc.fontSize(10).font('Helvetica-Bold')
+        doc.fontSize(10)
            .text(`${clausula.num}. ${clausula.titulo}`);
-        doc.fontSize(9).font('Helvetica')
+        doc.fontSize(9)
            .text(clausula.texto, { align: 'justify', lineGap: 2 });
         doc.moveDown();
       });
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
       doc.moveDown(2);
 
       // === ASSINATURA ===
-      doc.fontSize(11).font('Helvetica-Bold')
+      doc.fontSize(11)
          .text('ASSINATURA DIGITAL CONFIRMADA', { align: 'center' });
       doc.moveDown();
       
@@ -135,14 +135,14 @@ export async function POST(request: Request) {
         timeStyle: 'long'
       });
       
-      doc.fontSize(9).font('Helvetica')
+      doc.fontSize(9)
          .text(`Assinado por: ${userName}`, { align: 'center' })
          .text(`Data: ${dataFormatada}`, { align: 'center' })
          .text(`Hash de Validação: NVX-${user.id.substring(0, 8).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`, { align: 'center' });
 
       // === FOOTER ===
       doc.moveDown(3);
-      doc.fontSize(8).font('Helvetica')
+      doc.fontSize(8)
          .text('_'.repeat(100), { align: 'center' })
          .text('Este documento possui validade jurídica - Assinado digitalmente via Nevox Platform', { align: 'center' })
          .text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, { align: 'center' });
