@@ -1,61 +1,78 @@
+// app/api/user/sign-contract/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { enviarContratoPorEmail } from "@/lib/mail";
+import nodemailer from "nodemailer";
+import PDFDocument from "pdfkit";
+
+// Função auxiliar para gerar o PDF (igual ao download)
+async function gerarPDFContrato(user: any) {
+    return new Promise<Buffer>((resolve, reject) => {
+        const doc = new PDFDocument();
+        const chunks: any[] = [];
+        doc.on('data', chunk => chunks.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        
+        doc.fontSize(20).text('CONTRATO ASSINADO', { align: 'center' });
+        doc.moveDown();
+        doc.fontSize(12).text(`Este documento certifica a assinatura do plano ${user.plan}.`);
+        doc.text(`Cliente: ${user.name}`);
+        doc.text(`CPF: ${user.cpf}`);
+        doc.text(`Data: ${new Date().toLocaleString()}`);
+        doc.moveDown();
+        doc.text('Assinatura Digital Confirmada.', { align: 'center' });
+        doc.end();
+    });
+}
 
 export async function POST(request: Request) {
-  console.log("🏁 INICIANDO PROCESSO DE ASSINATURA...");
-  
   try {
     const body = await request.json();
     const { userId, signatureName } = body;
 
-    console.log("1️⃣ Recebi os dados:", { userId, signatureName });
-
-    // PASSO 1: Buscar Usuário
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-        console.error("❌ Usuário não encontrado no banco.");
-        return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
-    }
-    console.log("✅ Usuário encontrado:", user.email);
-
-    // PASSO 2: Atualizar Banco (AQUI GERALMENTE DÁ O ERRO SE O BANCO TIVER DESATUALIZADO)
-    console.log("2️⃣ Tentando atualizar hasSignedContract no banco...");
-    await prisma.user.update({
+    // 1. Atualiza no Banco
+    const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: { hasSignedContract: true } // <--- O ERRO 500 GERALMENTE É AQUI
-    });
-    console.log("✅ Banco atualizado com sucesso!");
-
-    // PASSO 3: Criar Timeline
-    console.log("3️⃣ Criando item na Timeline...");
-    const dataAtual = new Date();
-    await prisma.timelineItem.create({
       data: {
-        userId,
-        title: "Contrato Assinado",
-        description: `Assinado digitalmente por ${signatureName}.`,
-        status: "completed",
-        date: dataAtual
+        hasSignedContract: true,
+        contractSignedAt: new Date(),
       }
     });
-    console.log("✅ Timeline criada!");
 
-    // PASSO 4: Enviar E-mail
-    console.log("4️⃣ Tentando enviar e-mail...");
-    // Coloquei num try/catch separado para o e-mail não travar o site se der erro
+    // 2. Tenta Enviar o E-mail (Bloco Try/Catch separado para não travar a tela se o email falhar)
     try {
-        await enviarContratoPorEmail(user.email, signatureName, dataAtual.toLocaleString('pt-BR'));
-        console.log("✅ E-mail enviado!");
+        const pdfBuffer = await gerarPDFContrato(updatedUser);
+
+        // CONFIGURAÇÃO DO E-MAIL (CONFIGURE AQUI)
+        const transporter = nodemailer.createTransport({
+            service: 'gmail', // ou 'smtp.hostinger.com', etc.
+            auth: {
+                user: process.env.EMAIL_USER, // Coloque no seu .env
+                pass: process.env.EMAIL_PASS  // Coloque no seu .env (Senha de App do Gmail)
+            }
+        });
+
+        await transporter.sendMail({
+            from: '"Equipe Tevox" <seuemail@gmail.com>',
+            to: updatedUser.email!, // Manda para o email do usuário
+            subject: 'Cópia do seu Contrato Assinado - Tevox',
+            text: `Olá ${updatedUser.name}, parabéns! Seu contrato foi assinado com sucesso. Segue cópia em anexo.`,
+            attachments: [
+                {
+                    filename: 'Contrato_Tevox.pdf',
+                    content: pdfBuffer
+                }
+            ]
+        });
+        console.log("E-mail de contrato enviado com sucesso!");
+
     } catch (emailError) {
-        console.error("⚠️ Erro apenas no envio de e-mail (mas o resto funcionou):", emailError);
+        console.error("Erro ao enviar e-mail (mas o contrato foi salvo):", emailError);
+        // Não retornamos erro aqui para não assustar o usuário, já que ele assinou no banco.
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, date: updatedUser.contractSignedAt });
 
-  } catch (error: any) {
-    // ESSE LOG VAI TE CONTAR O SEGREDO DO ERRO
-    console.error("❌❌❌ ERRO FATAL NO SERVIDOR:", error);
-    return NextResponse.json({ error: error.message || "Erro interno" }, { status: 500 });
+  } catch (error) {
+    return NextResponse.json({ success: false, error: "Erro ao salvar assinatura." }, { status: 500 });
   }
 }
