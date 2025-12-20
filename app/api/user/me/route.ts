@@ -1,41 +1,45 @@
-// app/api/user/me/route.ts - VERSÃO CORRIGIDA FINAL
+// app/api/user/me/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
   try {
-    const { userId } = await request.json();
+    const body = await request.json();
+    const { userId } = body;
+
+    if (!userId) {
+      return NextResponse.json({ error: "ID não fornecido" }, { status: 400 });
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        cpf: true,
-        plan: true,
-        status: true,
-        projectStage: true,
-        hasSignedContract: true,
-        hasActivePlan: true,        // ← IMPORTANTE!
-        contractSignedAt: true
-      }
+      include: { projects: true } // Traz projetos se tiver
     });
 
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+      return NextResponse.json({ error: "Usuário não encontrado" }, { status: 404 });
     }
 
-    // 🔥 LOG PARA DEBUG
-    console.log(`👤 API /user/me chamada para: ${user.email}`);
-    console.log(`📊 Status: ${user.status}`);
-    console.log(`💳 hasActivePlan: ${user.hasActivePlan}`);
-    console.log(`📝 hasSignedContract: ${user.hasSignedContract}`);
+    // AQUI É O SEGREDO: Enviamos explicitamente o status do contrato
+    return NextResponse.json({ 
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        cpf: user.cpf,
+        plan: user.plan,
+        
+        // Regras de Bloqueio
+        // Se status for ACTIVE, tem plano. Se hasSignedContract for true, assinou.
+        hasActivePlan: user.status === 'ACTIVE', 
+        hasSignedContract: user.hasSignedContract, 
+        
+        contractSignedAt: user.contractSignedAt,
+        projectStage: user.projectStage
+      }
+    });
 
-    return NextResponse.json({ user });
-    
-  } catch (error: any) {
-    console.error("❌ Erro em /api/user/me:", error);
+  } catch (error) {
     return NextResponse.json({ error: "Erro interno" }, { status: 500 });
   }
 }
